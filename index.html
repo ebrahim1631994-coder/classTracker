@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Behavior Tracker - Multi Class Pro</title>
+    <!-- مكتبة الأيقونات -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- مكتبة قراءة ملفات الإكسل -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- مكتبة قراءة ملفات الوورد -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; user-select: none; }
+        
+        /* Navbar */
+        .navbar { background-color: #1f2937; padding: 10px 20px; display: flex; gap: 10px; overflow-x: auto; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .class-tab { background-color: #374151; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; white-space: nowrap; transition: 0.2s; }
+        .class-tab:hover { background-color: #4b5563; }
+        .class-tab.active { background-color: #2563eb; font-weight: bold; }
+        .add-class-btn { background-color: #10b981; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        .add-class-btn:hover { background-color: #059669; }
+        .import-class-btn { background-color: #f59e0b; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; margin-left: auto; }
+        .import-class-btn:hover { background-color: #d97706; }
+
+        .container { max-width: 1300px; margin: auto; padding: 20px; }
+        
+        .class-header-wrapper { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; }
+        h1 { color: #333; margin: 0; font-size: clamp(24px, 5vw, 32px); }
+        .delete-class-btn { background-color: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: 0.2s; }
+        .delete-class-btn:hover { background-color: #dc2626; }
+        
+        /* Layout Grid for Leaderboard */
+        .layout-wrapper { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+        .main-content { flex: 1; min-width: 60%; }
+        
+        /* Leaderboard Sidebar */
+        .leaderboard-sidebar { width: 280px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; position: sticky; top: 20px; }
+        .leaderboard-sidebar h3 { margin-top: 0; text-align: center; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; color: #1f2937; }
+        .lb-list { list-style: none; padding: 0; margin: 0; }
+        .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e5e7eb; }
+        .lb-rank { font-weight: bold; color: #6b7280; width: 25px; }
+        .lb-name { flex: 1; font-weight: bold; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lb-score { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .lb-item:nth-child(1) .lb-rank { color: #eab308; font-size: 18px; }
+        .lb-item:nth-child(2) .lb-rank { color: #9ca3af; font-size: 17px; }
+        .lb-item:nth-child(3) .lb-rank { color: #d97706; font-size: 16px; }
+
+        /* Controls */
+        .controls-section { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
+        .controls-section input[type="text"] { padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; max-width: 400px; outline: none; }
+        .controls-section button { padding: 12px 20px; font-size: 16px; background-color: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+        .controls-section button:hover { background-color: #1d4ed8; }
+        .controls-section .class-report-btn { background-color: #8b5cf6; }
+        .controls-section .class-report-btn:hover { background-color: #7c3aed; }
+
+        /* Student Card */
+        .student-card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; }
+        .student-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; gap: 10px; }
+        .student-info { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1; }
+        .student-name { font-weight: bold; font-size: 18px; color: #2563eb; min-width: 140px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; transition: 0.2s; }
+        .student-name:hover { color: #1d4ed8; background-color: #eff6ff; border-radius: 4px; padding: 2px 5px; }
+        
+        .score-input { width: 65px; padding: 6px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; outline: none; transition: 0.2s; }
+        .score-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+        .score-label { font-size: 11px; color: #64748b; margin-bottom: 2px; text-align: center; font-weight: bold;}
+        .input-wrapper { display: flex; flex-direction: column; align-items: center; }
+        
+        .percentage-badge { font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 20px; white-space: nowrap; }
+        .perc-high { background-color: #dcfce7; color: #166534; }
+        .perc-mid { background-color: #fef08a; color: #854d0e; }
+        .perc-low { background-color: #fee2e2; color: #991b1b; }
+        .perc-none { background-color: #f3f4f6; color: #6b7280; }
+        
+        .student-actions-wrapper { display: flex; gap: 8px; }
+        .edit-btn { background: #e0f2fe; border: none; color: #0369a1; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
+        .edit-btn:hover { background-color: #bae6fd; color: #0c4a6e; }
+        .reset-student-btn { background: #fef08a; border: none; color: #854d0e; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
+        .reset-student-btn:hover { background-color: #fde047; color: #713f12; }
+        .delete-btn { background: #fef2f2; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
+        .delete-btn:hover { background-color: #fee2e2; color: #b91c1c; }
+
+        /* Icons Container */
+        .icons-container { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; }
+        .icon-btn { position: relative; width: 50px; height: 50px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: 0.1s; }
+        .icon-btn:active { transform: scale(0.95); }
+        .icon-btn.active { background-color: #e0f2fe; border-color: #93c5fd; }
+        .badge { position: absolute; top: -10px; right: -10px; background-color: #ef4444; color: white; font-size: 14px; font-weight: bold; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+        
+        /* Reports */
+        .report-view { display: none; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 900px; margin: 20px auto; }
+        .report-header { text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
+        .report-header h2 { margin: 0 0 10px 0; color: #111827; font-size: 28px; }
+        .report-date { color: #6b7280; font-size: 16px; }
+        
+        .report-stats { display: flex; justify-content: space-around; background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center; flex-wrap: wrap; gap: 15px; }
+        .stat-box h3 { margin: 0; font-size: 28px; }
+        .stat-box p { margin: 5px 0 0 0; color: #6b7280; text-transform: uppercase; font-size: 11px; font-weight: bold; }
+        .stat-positive { color: #16a34a; }
+        .stat-negative { color: #dc2626; }
+        .stat-quiz { color: #8b5cf6; }
+        .stat-project { color: #f59e0b; }
+
+        .report-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .report-list { list-style: none; padding: 0; margin: 0; width: 100%;}
+        .report-list h4 { margin-top: 0; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .report-list li { padding: 12px 0; border-bottom: 1px dashed #f3f4f6; display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
+        .report-item-info { display: flex; align-items: center; gap: 12px; }
+        .report-count { font-weight: bold; background: #f3f4f6; padding: 4px 12px; border-radius: 15px;}
+        
+        .class-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .class-table th, .class-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        .class-table th { background-color: #f8fafc; font-weight: bold; color: #374151; }
+        .class-table tr:hover { background-color: #f3f4f6; }
+
+        .report-actions { display: flex; gap: 15px; justify-content: center; margin-top: 40px; }
+        .btn-print { background-color: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn-print:hover { background-color: #059669; }
+        .btn-back { background-color: #6b7280; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn-back:hover { background-color: #4b5563; }
+        .reset-all-btn { position: fixed; bottom: 15px; right: 15px; background-color: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 1000; }
+
+        @media print { body { background: white; padding: 0; } .no-print { display: none !important; } .report-view { box-shadow: none; padding: 0; margin: 0; max-width: 100%; display: block; } #mainView, .navbar { display: none !important; } }
+        @media (max-width: 800px) { .layout-wrapper { flex-direction: column; } .leaderboard-sidebar { width: 100%; position: static; box-sizing: border-box; } .report-details-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <!-- تم تحديث رفع الملفات ليدعم الإكسل والوورد -->
+    <input type="file" id="fileUpload" accept=".txt,.csv,.xlsx,.xls,.docx" style="display:none;" onchange="handleImport(event)">
+
+    <div class="navbar no-print" id="navbar"></div>
+
+    <div class="container" id="mainView">
+        <div class="class-header-wrapper no-print">
+            <h1 id="classTitle">Class Tracker</h1>
+            <button class="delete-class-btn" onclick="deleteCurrentClass()" title="Delete this entire class"><i class="fa-solid fa-trash"></i> Delete Class</button>
+        </div>
+        
+        <div class="controls-section no-print">
+            <input type="text" id="newStudentName" placeholder="Enter new student name...">
+            <button onclick="addStudent()"><i class="fa-solid fa-plus"></i> Add Student</button>
+            <button class="class-report-btn" onclick="openClassReport()"><i class="fa-solid fa-chart-bar"></i> Class Report</button>
+        </div>
+
+        <div class="layout-wrapper">
+            <div class="main-content" id="app"></div>
+            
+            <div class="leaderboard-sidebar no-print">
+                <h3><i class="fa-solid fa-trophy" style="color:#eab308"></i> Top Students</h3>
+                <p style="font-size: 12px; text-align: center; color: #64748b; margin-top: -5px; margin-bottom: 10px;">Requires &ge; 90% and Positives &gt; Negatives</p>
+                <ul class="lb-list" id="leaderboardList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Individual Student Report -->
+    <div class="report-view" id="studentReportView">
+        <div class="report-header">
+            <h2>Student Behavior & Academic Report</h2>
+            <h3 id="r-studentName" style="color: #2563eb; margin: 5px 0;"></h3>
+            <div class="report-date" id="r-date"></div>
+        </div>
+        <div class="report-stats">
+            <div class="stat-box"><h3 id="r-pos-score" class="stat-positive">0</h3><p>Positives</p></div>
+            <div class="stat-box"><h3 id="r-quiz-score" class="stat-quiz">-</h3><p>Quiz / WS Score</p></div>
+            <div class="stat-box"><h3 id="r-project-score" class="stat-project">-</h3><p>Project Score</p></div>
+            <div class="stat-box"><h3 id="r-perc">0%</h3><p>Behavior Score</p></div>
+            <div class="stat-box"><h3 id="r-neg-score" class="stat-negative">0</h3><p>Needs Improvement</p></div>
+        </div>
+        <div class="report-details-grid">
+            <div><ul class="report-list" id="r-positive-list"></ul></div>
+            <div><ul class="report-list" id="r-negative-list"></ul></div>
+        </div>
+        <div class="report-actions no-print">
+            <button class="btn-back" onclick="closeReports()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Print PDF</button>
+        </div>
+    </div>
+
+    <!-- Comprehensive Class Report -->
+    <div class="report-view" id="classReportView">
+        <div class="report-header">
+            <h2>Comprehensive Class Report</h2>
+            <h3 id="cr-className" style="color: #8b5cf6; margin: 5px 0;"></h3>
+            <div class="report-date" id="cr-date"></div>
+        </div>
+        
+        <table class="class-table">
+            <thead>
+                <tr>
+                    <th>Student Name</th>
+                    <th>Quiz Score</th>
+                    <th>Project Score</th>
+                    <th>Positives</th>
+                    <th>Needs Impr.</th>
+                    <th>Behavior Score</th>
+                </tr>
+            </thead>
+            <tbody id="cr-table-body"></tbody>
+        </table>
+
+        <div class="report-actions no-print">
+            <button class="btn-back" onclick="closeReports()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Print PDF</button>
+        </div>
+    </div>
+
+    <button class="reset-all-btn no-print" onclick="hardReset()">Reset All Data</button>
+
+    <script>
+        const behaviors = [
+            { id: 'leader', type: 'positive', icon: 'fa-solid fa-crown', color: '#2563eb', title: 'Leadership' },
+            { id: 'creative', type: 'positive', icon: 'fa-solid fa-lightbulb', color: '#eab308', title: 'Creative Idea' },
+            { id: 'participation', type: 'positive', icon: 'fa-solid fa-hand', color: '#16a34a', title: 'Participation' },
+            { id: 'homework', type: 'positive', icon: 'fa-solid fa-book-open', color: '#2563eb', title: 'Homework Done' },
+            { id: 'strong', type: 'positive', icon: 'fa-solid fa-dumbbell', color: '#2563eb', title: 'Strong Effort' },
+            { id: 'help', type: 'positive', icon: 'fa-solid fa-handshake', color: '#f97316', title: 'Helpful' },
+            { id: 'star', type: 'positive', icon: 'fa-solid fa-star', color: '#eab308', title: 'Star Student' },
+            { id: 'late', type: 'negative', icon: 'fa-solid fa-clock', color: '#ef4444', title: 'Late' },
+            { id: 'missing', type: 'negative', icon: 'fa-solid fa-triangle-exclamation', color: '#ef4444', title: 'Missing Materials' },
+            { id: 'mute', type: 'negative', icon: 'fa-solid fa-volume-xmark', color: '#1f2937', title: 'Talking' },
+            { id: 'search', type: 'negative', icon: 'fa-solid fa-magnifying-glass', color: '#16a34a', title: 'Distracted' },
+            { id: 'play', type: 'negative', icon: 'fa-solid fa-users', color: '#1f2937', title: 'Playing around' },
+            { id: 'food', type: 'negative', icon: 'fa-solid fa-burger', color: '#1f2937', title: 'Eating/Drinking' },
+            { id: 'run', type: 'negative', icon: 'fa-solid fa-person-running', color: '#1f2937', title: 'Out of seat' }
+        ];
+
+        const defaultClass5C = [
+            { id: 1, name: "Adel Nasif" }, { id: 2, name: "Adam Mohamed Abo samrah" },
+            { id: 3, name: "Abdul Majid Mohamed Ali" }, { id: 4, name: "ASER TAMER ABDULBAQI" },
+            { id: 5, name: "Azeez Mohd Abuzanouneh" }, { id: 6, name: "Ibrahim Mohamed Abdel Latif Ahmed" },
+            { id: 7, name: "Faris Mohammed Mansour" }, { id: 8, name: "Ghaith AbdelRahman Abukoush" },
+            { id: 9, name: "Mazen Manhal AlAsmar" }, { id: 10, name: "MOHAMMED TURKI ALFARSI" },
+            { id: 11, name: "Mu'ath Abubakar Galant" }, { id: 12, name: "Omar Anas Mowakkea" },
+            { id: 13, name: "Sanad Yarob Ali Fareed Khlief" }, { id: 14, name: "Thonayan Mohamed Almotairy" },
+            { id: 15, name: "Turki Khaled Bayahya" }, { id: 16, name: "Yahya Moustafa Touni" },
+            { id: 17, name: "Yazeed Ahmed" }, { id: 18, name: "Jehad Deeb" }
+        ];
+
+        let appData = {
+            classes: { "Class 5C": { students: defaultClass5C, scores: {}, quizScores: {}, projectScores: {} } },
+            currentClass: "Class 5C"
+        };
+
+        try {
+            const savedData = localStorage.getItem('behaviorTrackerData');
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                if (parsed && parsed.classes && Object.keys(parsed.classes).length > 0) { appData = parsed; }
+            }
+        } catch (e) { console.error("Failed to load data", e); }
+
+        if (appData.classes["Class 5C"] && appData.classes["Class 5C"].students.length === 0) {
+            appData.classes["Class 5C"].students = defaultClass5C;
+        }
+
+        if (!appData.classes[appData.currentClass]) { appData.currentClass = Object.keys(appData.classes)[0]; }
+        Object.keys(appData.classes).forEach(cls => {
+            if (!appData.classes[cls].quizScores) appData.classes[cls].quizScores = {};
+            if (!appData.classes[cls].projectScores) appData.classes[cls].projectScores = {};
+        });
+
+        function saveData() { localStorage.setItem('behaviorTrackerData', JSON.stringify(appData)); }
+
+        function hardReset() {
+            if (confirm("WARNING: This will delete ALL classes and students. Are you sure?")) {
+                localStorage.clear(); location.reload();
+            }
+        }
+
+        function renderNavbar() {
+            const nav = document.getElementById('navbar');
+            nav.innerHTML = '';
+            
+            Object.keys(appData.classes).forEach(className => {
+                const btn = document.createElement('button');
+                btn.className = `class-tab ${appData.currentClass === className ? 'active' : ''}`;
+                btn.textContent = className;
+                btn.onclick = () => switchClass(className);
+                nav.appendChild(btn);
+            });
+
+            const addBtn = document.createElement('button');
+            addBtn.className = 'add-class-btn';
+            addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New Class';
+            addBtn.onclick = createNewClass;
+            nav.appendChild(addBtn);
+
+            const importBtn = document.createElement('button');
+            importBtn.className = 'import-class-btn';
+            importBtn.innerHTML = '<i class="fa-solid fa-file-import"></i> Import Class';
+            importBtn.onclick = () => document.getElementById('fileUpload').click();
+            nav.appendChild(importBtn);
+        }
+
+        // دالة استيراد الأسماء من Word و Excel و TXT
+        async function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const ext = file.name.split('.').pop().toLowerCase();
+            let names = [];
+
+            try {
+                if (ext === 'txt' || ext === 'csv') {
+                    const text = await file.text();
+                    names = text.split(/\r?\n/);
+                } else if (ext === 'xlsx' || ext === 'xls') {
+                    const buffer = await file.arrayBuffer();
+                    const workbook = XLSX.read(buffer, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    names = json.map(row => row[0]); // استخراج العمود الأول
+                } else if (ext === 'docx') {
+                    const buffer = await file.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+                    names = result.value.split(/\r?\n/);
+                } else {
+                    alert("Unsupported file type. Please upload .txt, .csv, .xlsx, or .docx");
+                    event.target.value = '';
+                    return;
+                }
+
+                names = names.map(n => n ? String(n).trim() : '').filter(n => n.length > 0);
+
+                if (names.length > 0) {
+                    const className = prompt(`Found ${names.length} students. Enter a name for this new class (e.g. Class 6B):`);
+                    if (className && className.trim() !== '') {
+                        if (!appData.classes[className]) {
+                            appData.classes[className] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
+                            names.forEach((name, index) => {
+                                appData.classes[className].students.push({ id: Date.now() + index, name: name });
+                            });
+                            switchClass(className);
+                        } else { alert("A class with this name already exists!"); }
+                    }
+                } else {
+                    alert("No names found in the document. Ensure names are in the first column (for Excel) or listed line by line.");
+                }
+            } catch (error) {
+                console.error("Error reading file:", error);
+                alert("An error occurred while reading the file.");
+            }
+            event.target.value = ''; 
+        }
+
+        function switchClass(className) {
+            appData.currentClass = className;
+            saveData(); closeReports(); renderNavbar(); renderClass();
+        }
+
+        function createNewClass() {
+            const name = prompt("Enter new class name (e.g., Class 6A):");
+            if (name && name.trim() !== "") {
+                if (!appData.classes[name]) {
+                    appData.classes[name] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
+                    switchClass(name);
+                } else { alert("Class already exists!"); }
+            }
+        }
+
+        function deleteCurrentClass() {
+            const currentClassName = appData.currentClass;
+            if (confirm(`Are you absolutely sure you want to delete ${currentClassName} and ALL its students? This cannot be undone.`)) {
+                delete appData.classes[currentClassName];
+                if (Object.keys(appData.classes).length === 0) {
+                    appData.classes["New Class"] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
+                    appData.currentClass = "New Class";
+                } else {
+                    appData.currentClass = Object.keys(appData.classes)[0];
+                }
+                saveData(); renderNavbar(); renderClass();
+            }
+        }
+
+        function addStudent() {
+            const input = document.getElementById('newStudentName');
+            const name = input.value.trim();
+            if (name) {
+                const currentData = appData.classes[appData.currentClass];
+                currentData.students.push({ id: Date.now(), name: name });
+                input.value = '';
+                saveData(); renderClass();
+            }
+        }
+
+        // تعديل اسم الطالب
+        function editStudent(id, oldName) {
+            const newName = prompt("Edit student name:", oldName);
+            if (newName && newName.trim() !== "" && newName !== oldName) {
+                const currentData = appData.classes[appData.currentClass];
+                const student = currentData.students.find(s => s.id === id);
+                if (student) {
+                    student.name = newName.trim();
+                    saveData();
+                    renderClass();
+                }
+            }
+        }
+
+        function deleteStudent(id, name) {
+            if (confirm(`Are you sure you want to delete ${name}?`)) {
+                const currentData = appData.classes[appData.currentClass];
+                currentData.students = currentData.students.filter(s => s.id !== id);
+                delete currentData.scores[id];
+                delete currentData.quizScores[id];
+                delete currentData.projectScores[id];
+                saveData(); renderClass();
+            }
+        }
+
+        function resetStudent(id, name) {
+            if (confirm(`Reset all points, quiz, and project scores for ${name}?`)) {
+                const currentData = appData.classes[appData.currentClass];
+                if (currentData.scores[id]) delete currentData.scores[id];
+                if (currentData.quizScores[id]) delete currentData.quizScores[id];
+                if (currentData.projectScores[id]) delete currentData.projectScores[id];
+                saveData(); renderClass();
+            }
+        }
+
+        function updateQuizScore(studentId, value) {
+            appData.classes[appData.currentClass].quizScores[studentId] = value;
+            saveData();
+        }
+
+        function updateProjectScore(studentId, value) {
+            appData.classes[appData.currentClass].projectScores[studentId] = value;
+            saveData();
+        }
+
+        function calculateStats(studentId) {
+            let positiveCount = 0;
+            let negativeCount = 0;
+            const scores = appData.classes[appData.currentClass].scores;
+            
+            if (scores[studentId]) {
+                behaviors.forEach(b => {
+                    const count = scores[studentId][b.id] || 0;
+                    if (b.type === 'positive') positiveCount += count;
+                    else if (b.type === 'negative') negativeCount += count;
+                });
+            }
+
+            let percentage = 0;
+            let colorClass = "perc-none";
+            let text = "No Data";
+
+            if (positiveCount > 0 || negativeCount > 0) {
+                percentage = 100 - (negativeCount * 10) + (positiveCount * 5);
+                if (percentage > 100) percentage = 100;
+                if (percentage < 70) percentage = 70;
+
+                if (percentage >= 90) colorClass = "perc-high";
+                else if (percentage >= 80) colorClass = "perc-mid";
+                else colorClass = "perc-low";
+                
+                text = `${percentage}%`;
+            }
+            
+            let netScore = positiveCount - negativeCount;
+            return { positiveCount, negativeCount, percentage, colorClass, text, netScore };
+        }
+
+        function renderLeaderboard() {
+            const list = document.getElementById('leaderboardList');
+            list.innerHTML = '';
+            const currentData = appData.classes[appData.currentClass];
+            
+            if (!currentData || currentData.students.length === 0) {
+                list.innerHTML = '<li style="text-align:center; color:#6b7280; margin-top:20px;">No students</li>';
+                return;
+            }
+
+            let ranked = currentData.students.map(s => {
+                const stats = calculateStats(s.id);
+                return { name: s.name, netScore: stats.netScore, pos: stats.positiveCount, neg: stats.negativeCount, perc: stats.percentage };
+            });
+
+            let topStudents = ranked.filter(s => s.perc >= 90 && s.pos > s.neg);
+
+            topStudents.sort((a, b) => {
+                if(b.netScore !== a.netScore) return b.netScore - a.netScore;
+                return b.pos - a.pos;
+            });
+
+            topStudents.slice(0, 10).forEach((s, index) => {
+                const li = document.createElement('li');
+                li.className = 'lb-item';
+                
+                let medal = `${index+1}.`;
+                if(index === 0) medal = '<i class="fa-solid fa-medal"></i>';
+                if(index === 1) medal = '<i class="fa-solid fa-medal"></i>';
+                if(index === 2) medal = '<i class="fa-solid fa-medal"></i>';
+
+                li.innerHTML = `
+                    <span class="lb-rank">${medal}</span>
+                    <span class="lb-name" title="${s.name}">${s.name}</span>
+                    <span class="lb-score">${s.perc}%</span>
+                `;
+                list.appendChild(li);
+            });
+
+            if(list.innerHTML === '') {
+                list.innerHTML = '<li style="text-align:center; color:#6b7280; font-size:14px; margin-top:20px; line-height: 1.5;">No students meet the requirements yet.<br>(Need &ge; 90% and Positives &gt; Negatives)</li>';
+            }
+        }
+
+        function renderClass() {
+            document.getElementById('classTitle').textContent = `${appData.currentClass}`;
+            const app = document.getElementById('app');
+            app.innerHTML = '';
+            const currentData = appData.classes[appData.currentClass];
+
+            if (!currentData || currentData.students.length === 0) {
+                app.innerHTML = `<p style="text-align:center; color:#6b7280; font-size:18px; padding:40px;">No students in this class yet. Add manually or import from file.</p>`;
+                renderLeaderboard();
+                return;
+            }
+
+            currentData.students.forEach(student => {
+                const card = document.createElement('div'); card.className = 'student-card';
+                const headerDiv = document.createElement('div'); headerDiv.className = 'student-header';
+                const infoDiv = document.createElement('div'); infoDiv.className = 'student-info';
+                
+                const nameDiv = document.createElement('div'); nameDiv.className = 'student-name';
+                nameDiv.textContent = student.name; nameDiv.title = "Click to view full report";
+                nameDiv.onclick = () => openStudentReport(student.id, student.name);
+                
+                const quizWrapper = document.createElement('div'); quizWrapper.className = 'input-wrapper';
+                const quizLabel = document.createElement('span'); quizLabel.className = 'score-label'; quizLabel.textContent = 'Quiz / WS';
+                const quizInput = document.createElement('input'); quizInput.type = 'text'; quizInput.className = 'score-input'; quizInput.placeholder = '...';
+                quizInput.value = currentData.quizScores[student.id] || '';
+                quizInput.onchange = (e) => updateQuizScore(student.id, e.target.value);
+                quizWrapper.appendChild(quizLabel); quizWrapper.appendChild(quizInput);
+
+                const projWrapper = document.createElement('div'); projWrapper.className = 'input-wrapper';
+                const projLabel = document.createElement('span'); projLabel.className = 'score-label'; projLabel.textContent = 'Project';
+                const projInput = document.createElement('input'); projInput.type = 'text'; projInput.className = 'score-input'; projInput.placeholder = '...';
+                projInput.value = currentData.projectScores[student.id] || '';
+                projInput.onchange = (e) => updateProjectScore(student.id, e.target.value);
+                projWrapper.appendChild(projLabel); projWrapper.appendChild(projInput);
+
+                const stats = calculateStats(student.id);
+                const percDiv = document.createElement('div'); percDiv.className = `percentage-badge ${stats.colorClass}`;
+                percDiv.textContent = stats.text;
+
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(quizWrapper);
+                infoDiv.appendChild(projWrapper);
+                infoDiv.appendChild(percDiv);
+
+                const actionsWrapper = document.createElement('div');
+                actionsWrapper.className = 'student-actions-wrapper';
+
+                const editBtn = document.createElement('button'); editBtn.className = 'edit-btn';
+                editBtn.title = "Edit Student Name"; editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+                editBtn.onclick = () => editStudent(student.id, student.name);
+
+                const resetBtn = document.createElement('button'); resetBtn.className = 'reset-student-btn';
+                resetBtn.title = "Reset Student Scores"; resetBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate-left"></i>';
+                resetBtn.onclick = () => resetStudent(student.id, student.name);
+
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-btn';
+                deleteBtn.title = "Delete Student"; deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                deleteBtn.onclick = () => deleteStudent(student.id, student.name);
+
+                actionsWrapper.appendChild(editBtn);
+                actionsWrapper.appendChild(resetBtn);
+                actionsWrapper.appendChild(deleteBtn);
+
+                headerDiv.appendChild(infoDiv); headerDiv.appendChild(actionsWrapper); card.appendChild(headerDiv);
+
+                const iconsDiv = document.createElement('div'); iconsDiv.className = 'icons-container';
+
+                behaviors.forEach(behavior => {
+                    const count = (currentData.scores[student.id] && currentData.scores[student.id][behavior.id]) || 0;
+                    const btn = document.createElement('button'); btn.className = `icon-btn ${count > 0 ? 'active' : ''}`;
+                    const iconTag = document.createElement('i'); iconTag.className = behavior.icon; iconTag.style.color = behavior.color;
+                    btn.appendChild(iconTag);
+
+                    if (count > 0) {
+                        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = count;
+                        badge.addEventListener('click', (e) => {
+                            e.stopPropagation(); currentData.scores[student.id][behavior.id] = count - 1; saveData(); renderClass();
+                        });
+                        btn.appendChild(badge);
+                    }
+
+                    btn.addEventListener('click', () => {
+                        if (!currentData.scores[student.id]) currentData.scores[student.id] = {};
+                        currentData.scores[student.id][behavior.id] = count + 1; saveData(); renderClass();
+                    });
+
+                    btn.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        if (count > 0) { currentData.scores[student.id][behavior.id] = count - 1; saveData(); renderClass(); }
+                    });
+
+                    iconsDiv.appendChild(btn);
+                });
+                card.appendChild(iconsDiv); app.appendChild(card);
+            });
+
+            renderLeaderboard();
+        }
+
+        function hideAllViews() {
+            document.getElementById('mainView').style.display = 'none';
+            document.getElementById('studentReportView').style.display = 'none';
+            document.getElementById('classReportView').style.display = 'none';
+        }
+
+        function closeReports() {
+            hideAllViews(); document.getElementById('mainView').style.display = 'block';
+        }
+
+        function openStudentReport(studentId, studentName) {
+            hideAllViews(); document.getElementById('studentReportView').style.display = 'block';
+            
+            document.getElementById('r-studentName').textContent = studentName;
+            document.getElementById('r-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            const stats = calculateStats(studentId);
+            const quizVal = appData.classes[appData.currentClass].quizScores[studentId] || 'N/A';
+            const projVal = appData.classes[appData.currentClass].projectScores[studentId] || 'N/A';
+
+            document.getElementById('r-pos-score').textContent = stats.positiveCount;
+            document.getElementById('r-neg-score').textContent = stats.negativeCount;
+            document.getElementById('r-quiz-score').textContent = quizVal;
+            document.getElementById('r-project-score').textContent = projVal;
+            document.getElementById('r-perc').textContent = stats.text;
+            document.getElementById('r-perc').className = stats.colorClass;
+
+            let posHtml = '<h4><i class="fa-solid fa-thumbs-up" style="color:#16a34a"></i> Positive Behaviors</h4>';
+            let negHtml = '<h4><i class="fa-solid fa-circle-exclamation" style="color:#dc2626"></i> Needs Improvement</h4>';
+            let hasPos = false; let hasNeg = false;
+            const scores = appData.classes[appData.currentClass].scores;
+
+            behaviors.forEach(b => {
+                const count = scores[studentId]?.[b.id] || 0;
+                if (count > 0) {
+                    const li = `<li><div class="report-item-info"><i class="${b.icon}" style="color:${b.color}; font-size: 20px; width: 25px; text-align: center;"></i><span>${b.title}</span></div><span class="report-count">${count}</span></li>`;
+                    if (b.type === 'positive') { posHtml += li; hasPos = true; } 
+                    else { negHtml += li; hasNeg = true; }
+                }
+            });
+
+            if (!hasPos) posHtml += '<li style="color:#6b7280; font-size: 14px;">No positive records yet.</li>';
+            if (!hasNeg) negHtml += '<li style="color:#6b7280; font-size: 14px;">No negative records yet.</li>';
+
+            document.getElementById('r-positive-list').innerHTML = posHtml;
+            document.getElementById('r-negative-list').innerHTML = negHtml;
+            window.scrollTo(0, 0);
+        }
+
+        function openClassReport() {
+            hideAllViews(); document.getElementById('classReportView').style.display = 'block';
+            
+            document.getElementById('cr-className').textContent = appData.currentClass;
+            document.getElementById('cr-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            const tbody = document.getElementById('cr-table-body');
+            tbody.innerHTML = '';
+            
+            const currentData = appData.classes[appData.currentClass];
+            
+            if (!currentData.students || currentData.students.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#6b7280;">No students in this class.</td></tr>`;
+                return;
+            }
+
+            currentData.students.forEach(student => {
+                const stats = calculateStats(student.id);
+                const quizVal = currentData.quizScores[student.id] || '-';
+                const projVal = currentData.projectScores[student.id] || '-';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: bold; color: #1f2937;">${student.name}</td>
+                    <td style="color: #8b5cf6; font-weight: bold;">${quizVal}</td>
+                    <td style="color: #f59e0b; font-weight: bold;">${projVal}</td>
+                    <td style="color: #16a34a; font-weight: bold;">${stats.positiveCount}</td>
+                    <td style="color: #dc2626; font-weight: bold;">${stats.negativeCount}</td>
+                    <td><span class="percentage-badge ${stats.colorClass}">${stats.text}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            window.scrollTo(0, 0);
+        }
+
+        renderNavbar();
+        renderClass();
+    </script>
+</body>
+</html>
