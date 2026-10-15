@@ -1,699 +1,1382 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Behavior Tracker - Multi Class Pro</title>
-    <!-- مكتبة الأيقونات -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- مكتبة قراءة ملفات الإكسل -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- مكتبة قراءة ملفات الوورد -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDUGATES Behavior Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+
+<script>
+// ================= CORE DATA & LOGIN ENGINE =================
+const ADMINS = ["Mr. Ibrahim Abdullatif", "Mr. Abdallah"];
+
+const TEACHER_PINS = {
+    "Mr. Ibrahim Abdullatif": "75432",
+    "Mr. Abdallah": "99999",
+    "Mr. Walid Abdulnaser": "10101",
+    "Mr. Ahmed Mohamed": "20202",
+    "Mr. Ahmed Mousa": "30303",
+    "Mr. Yousef Muaidh": "40404",
+    "Mr. Mohamed Hassan": "50505",
+    "Mr. Mohamed Abdulaziz": "60606",
+    "Mr. Mohamed Abdullah S": "70707",
+    "Mr. Mohamed Abdullah A": "80808",
+    "Mr. Mahmoud Mostafa": "90909",
+    "Mr. Fahd Ali": "11223",
+    "Mr. Walid Abdulhadi": "22334",
+    "Mr. Osama Mostafa": "33445",
+    "Mr. Salah Mahmoud": "44556",
+    "Mr. Mohamed Ahmed": "55667",
+    "Mr. Abed Saleem": "66778",
+    "Mr. Mohamed Abrar": "77889",
+    "Mr. Magdy Abdulati": "88990",
+    "Mr. Ali Rashid": "12121",
+    "Mr. Ali Abutaleb": "23232",
+    "Mr. Mostafa Abdulaziz": "34343",
+    "Mr. Mazen Fathalrahman": "45454"
+};
+
+const SCHOOL_CLASSES = {
+    "GRADE 5C": ["Abdulmajid Mohamed Ali","Adam Mohamed Abosamrah","ADIL MOHAMMED A NASEEF","ASER TAMER AHMED ABDELBAKY","Azeez Mohd Abuzanouneh","Ebrahim Salah Salih","Faris Mohammed Mansour","Ghaith AbdelRahman Abukoush","JEHAD ZEEB MUSLMANI","Mazen Manhal AlAsmar","MOHAMMED TURKI M ALFASSI","Mu’ath Abubakar Galant","Omar Anas Mowakkea","Sanad Yarob Ali Fareed Khlief","Thonayan Mohamed Almotairy","Turki Khaled Bayahya","Yahya Moustafa Touni","YAZID AHMED SALAH SERAGELDIN"],
+    "GRADE 6C": ["Ahmed Faisal A Alghamdi","Ahmed Mohammed A Alshahrani","AMER FERAS MOHAMMED DEEB AFYONI","EISSA MOHAMMED OMAR QURUNFULAH","Eyad Hossam Jamal Shiha","Faisal Mohammed Alotaibi","FAISAL SAMI M ALJOHANI","Hadi Mohammad AlTantawi","Jamal Majdi AlKharouf","Marwan Ahmed Morsy","MOHAMED OMER MOHAMED TAIFOUR","Mohammed Adel Mahdy Mohammed","SALMAN RAYAN W ALTAWEL","Yahia Mohamed Elsayed Emara"],
+    "GRADE 7C": ["Abdul Aziz Mohamed Bajjad Al-Otaibi","ABDUL RAHMAN RAFAT HAMDI AMAN","Abdul-Ilah Amar Hafez","Adam Mohamed Abdullah Abdul Wahab","AHMED BUN RAMZI SAHNOUN","Ahmed Yaroub Ali Khalif","ALWALEED JAMAL G ALGHANIM","FAHAD MOHAMMED OMAR QURUNFULAH","Ibrahim Mohamed Ibrahim Fahmy Abdul Molu","JEMAL SEID ALI","Mohamed Hani Mohamed Saad Baroud","Mohamed Ibrahim Omar Ibrahim Al-Samahi","MOHAMMED ALI MOHAMMED HAFEZ","Omar Mohamed Ibrahim Khalil","Qusai Hassan Al-Halabi","Raed Amr Mufti","RAYAN TAMER AHMED IBRAHIM ABDELBAKY","Saif al-Din Ahmed Awad Al-Sayed Mahmoud","Saleh bin Sultan bin Saleh Al-Aswad","Salman Abdulrahman Al-Shahri","Tim Nawaf Al-Rifai","Yassin Mohamed Ibrahim Khalil"],
+    "GRADE 8C": ["AbdelGadir Tarig AbdelGadir Abdalla","AbdulElah Essam Ahmed Salem AlShehri","AbdulElah Nawaf M Malibari","ABDULRAHMAN MOHAMMED GHAZI QASEM","Ahmad Mohammad Arafat Mansour","Ahmed Ebrahim Alamaei","Ayad AbulRahman Haj Jneid","Battal Mukhlid s Alamry","Bejad MOHAMED MAKAWY","Faris Khaled A Felimban","KARIM TAMER MOHAMED SALEM","Khalid Wessam Khalid AbdelHadi Saib","KREEM AYMAN MUHYIALDEEN MANSOUR","MOETAZ AHMED NABIL MOMEN","Mohab Khalaf Mahmoud Ahmed Hassan","MOHAMED SOBEIN HUSSEIN","OMAR RIYAD ALHAZA","Omar Seif Raghib Hussain Seif","Rayan Hasan AlHalabieh","Yousef Mohammed AbuSamra","Yousef Wisam Y Al DAGHIMA"],
+    "GRADE 9C": ["Abdullah Esam A Alshehrl","Abdullah Khalid Abdullah Al-haddad","Ahmed Mohammed A Almanjaf","Amjad Osama Mustafa Hassan","Anas Mohamed Ezzat Mahmoud Hassan EISSA","Dia Zahid D Zahid","Ezz Aldein Osamah Metwaly","Faisal Fahad A Howit","Fouad Raed F Saleem","HASSAN AHMED MAHMOUD ABDELMOATY","MOHAMMED SANUSI ABDULLAAH ABO JOLH","Mohammed Y. A. Salah","Naif Mohamed B Fallata","Qusai Omar Refai Sabrah","YOUSEF YASSER M BAABDULLAH"],
+    "GRADE 10C": ["Amjad AbdulRahman Haj Jnied","Aasser Yamin Asaad AbdelMoeti Mirdad","ABDULLAH MOHEALDEEN M MALIBARI","AHMED HUSSAIN MOHAMMED DEEB","Bashar Yousef Mahmoud Ali Jazzar","Fendi Mohamad Afandi","HAMZA AHMED MOHAMED ELANANY","KANAN AHMED ALAFGHANI","KHALID AHMED RADWAN","KHALID NABIL A ALSAYED","Laith Yarob Ali Fareed Khlief","Mahmoud Zakria Hassan","MAJD AZZAM JAAMOUR","MAJD MAJED A ALMALAWY","MOHAMED AHMED ADEL","Mohammed Osama Ali Hassan Basheer","NAFIE ABDULLAH ALHALABIYAH","Rami Mohammed Arshad Khan","SAAD ADEL S ALZAHRANI","Saif Ramy Ibrahim AbdelAal Ali","YOUSEF ANAS MHD NUAMAN MOWAKKEA"],
+    "GRADE 11C": ["Abdullah Abdul Rahman A. ALBaydani","Abdullelah Mohamed Bahenshel","Abdulrahman Taha Abdulhadi","AMEEN ANVAR SIDDIKUI","Mahd Muhammad Salman Amjad Syed","Mahmoud Eyad Mahmoud Ali","MOHAMMED HASSAN M ALATTAS","MUATH ABDULLAH S ZAMIL","Mujtaba Mohamed Altaher","Mustafa Osama Mustafa Hassan","NASSER ABDULRAHMAN M ALSOMALY","NOOR HOSSAM MOHAMED MOHAMED","Omar Shareef Sayed Ali","YAHYA ASAAD ABDULMALEK","Youssef Mazen","YOUSSEF SHERIF AHMED FAWZY OSMAN"],
+    "GRADE 12C": ["Omar Manhal AlAsmar","ABDALLA AHMED ABBAS HELMY YAKAN","ABDULRAHMAN WAEL ABDULSATTAR","Faris Husam Hassan Badrah","MALEK ANAS HOSNI EZZAT AMER","MOHAMMED ABDULRAHMAN ALSIBAEE","Odai Omar Refai Sabrah","OMAR AYMAN MANSOUR","RAYAN MOHAAMED H ALFI","WALEED ABDULRAHMAN M ALSOMALY","Yousef AbdulRahman Zayed AlJobairi AlShihri"]
+};
+
+const behaviors = [
+    { id: 'leader', type: 'positive', icon: 'fa-solid fa-crown', color: '#2563eb', title: 'Leadership' },
+    { id: 'creative', type: 'positive', icon: 'fa-solid fa-lightbulb', color: '#eab308', title: 'Creative Idea' },
+    { id: 'participation', type: 'positive', icon: 'fa-solid fa-hand', color: '#16a34a', title: 'Participation' },
+    { id: 'homework', type: 'positive', icon: 'fa-solid fa-book-open', color: '#2563eb', title: 'Homework Done' },
+    { id: 'strong', type: 'positive', icon: 'fa-solid fa-dumbbell', color: '#2563eb', title: 'Strong Effort' },
+    { id: 'help', type: 'positive', icon: 'fa-solid fa-handshake', color: '#f97316', title: 'Helpful' },
+    { id: 'star', type: 'positive', icon: 'fa-solid fa-star', color: '#eab308', title: 'Star Student' },
+    { id: 'late', type: 'negative', icon: 'fa-solid fa-clock', color: '#ef4444', title: 'Late' },
+    { id: 'missing', type: 'negative', icon: 'fa-solid fa-triangle-exclamation', color: '#ef4444', title: 'Missing Materials' },
+    { id: 'mute', type: 'negative', icon: 'fa-solid fa-volume-xmark', color: '#1f2937', title: 'Talking' },
+    { id: 'search', type: 'negative', icon: 'fa-solid fa-magnifying-glass', color: '#16a34a', title: 'Distracted' },
+    { id: 'play', type: 'negative', icon: 'fa-solid fa-users', color: '#1f2937', title: 'Playing around' },
+    { id: 'food', type: 'negative', icon: 'fa-solid fa-burger', color: '#1f2937', title: 'Eating/Drinking' },
+    { id: 'run', type: 'negative', icon: 'fa-solid fa-person-running', color: '#1f2937', title: 'Out of seat' },
+    { id: 'other_neg', type: 'negative', icon: 'fa-solid fa-circle-exclamation', color: '#ef4444', title: 'Other Issue' }
+];
+
+let memStore = {};
+function setStore(k, v) { try { localStorage.setItem(k, v); } catch(e) { memStore[k] = v; } }
+function getStore(k) { try { return localStorage.getItem(k); } catch(e) { return memStore[k] || null; } }
+function delStore(k) { try { localStorage.removeItem(k); } catch(e) { delete memStore[k]; } }
+
+let globalData = {};
+let currentTeacher = null;
+let adminRealName = null;
+let isAdminImpersonating = false;
+let appData = null;
+let isHistoryMode = false;
+let historyDate = null;
+let activeGlobalStudentName = "";
+let activeGlobalClassName = "";
+let returnToAdminFromGlobal = false;
+let bulkMode = 'add';
+
+try {
+    let saved = getStore('EDUGATES_FINAL_DB');
+    if (saved) globalData = JSON.parse(saved);
+} catch(e) { globalData = {}; }
+
+function isReadOnlyView() {
+    return isAdminImpersonating && currentTeacher !== adminRealName;
+}
+
+function typeNum(n) {
+    const inp = document.getElementById('loginPinInput');
+    if (inp.value.length < 5) inp.value += n;
+}
+function clearPinBox() {
+    document.getElementById('loginPinInput').value = '';
+    document.getElementById('loginErrorMsg').textContent = '';
+}
+
+function executeDirectLogin() {
+    const tName = document.getElementById('loginTeacherSelect').value;
+    const tSub = document.getElementById('loginSubjectSelect').value;
+    let rawPin = document.getElementById('loginPinInput').value.trim();
+    const errBox = document.getElementById('loginErrorMsg');
+
+    let pin = rawPin.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+
+    if (!tName) { errBox.textContent = "Please choose your name from list #1"; return; }
+    if (!pin) { errBox.textContent = "Please enter your 5-digit PIN"; return; }
+
+    if (TEACHER_PINS[tName] === pin) {
+        currentTeacher = tName;
+        adminRealName = null;
+        isAdminImpersonating = false;
+        setStore('EDUGATES_FINAL_USER', currentTeacher);
+
+        if (!globalData[currentTeacher]) {
+            globalData[currentTeacher] = { subject: tSub, classes: {}, currentClass: "" };
+            populateAllSchoolClasses(globalData[currentTeacher]);
+        } else {
+            globalData[currentTeacher].subject = tSub;
+            if (!globalData[currentTeacher].classes || Object.keys(globalData[currentTeacher].classes).length === 0) {
+                populateAllSchoolClasses(globalData[currentTeacher]);
+            }
+        }
+        saveGlobal();
+        openMainDashboard();
+    } else {
+        errBox.textContent = "Wrong PIN! Check your 5-digit code.";
+    }
+}
+
+function populateAllSchoolClasses(tObj) {
+    let base = Date.now();
+    Object.keys(SCHOOL_CLASSES).forEach((cName, cIdx) => {
+        if (!tObj.classes[cName]) {
+            tObj.classes[cName] = {
+                students: SCHOOL_CLASSES[cName].map((sName, sIdx) => ({ id: base + (cIdx * 100) + sIdx, name: sName })),
+                scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, bulkCounts: {}, history: {}
+            };
+        }
+    });
+    tObj.currentClass = "GRADE 5C";
+}
+
+function saveGlobal() {
+    if (isReadOnlyView()) return; // Prevent saving any accidental mutations in Admin Read-Only mode
+    if (currentTeacher && appData) {
+        globalData[currentTeacher] = appData;
+        setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
+    }
+}
+</script>
+
+<style>
+    * { box-sizing: border-box; -webkit-touch-callout: none; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #1e293b; user-select: none; }
     
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; user-select: none; }
-        
-        /* Navbar */
-        .navbar { background-color: #1f2937; padding: 10px 20px; display: flex; gap: 10px; overflow-x: auto; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .class-tab { background-color: #374151; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; white-space: nowrap; transition: 0.2s; }
-        .class-tab:hover { background-color: #4b5563; }
-        .class-tab.active { background-color: #2563eb; font-weight: bold; }
-        .add-class-btn { background-color: #10b981; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        .add-class-btn:hover { background-color: #059669; }
-        .import-class-btn { background-color: #f59e0b; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; margin-left: auto; }
-        .import-class-btn:hover { background-color: #d97706; }
+    /* LOGIN VIEW */
+    #loginView { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; padding: 15px; }
+    .login-container { background: white; width: 100%; max-width: 460px; padding: 30px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); text-align: center; }
+    .login-container h2 { margin: 0 0 8px 0; color: #0f172a; font-size: 24px; }
+    .field-label { display: block; text-align: left; font-weight: bold; font-size: 13px; color: #334155; margin: 12px 0 6px 0; }
+    .login-select, .login-input { width: 100%; padding: 13px; font-size: 16px; font-weight: bold; border: 2px solid #cbd5e1; border-radius: 10px; outline: none; background: #f8fafc; color: #0f172a; }
+    .login-select:focus, .login-input:focus { border-color: #2563eb; background: white; }
+    .login-input { text-align: center; letter-spacing: 6px; font-size: 22px; }
+    .mini-pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+    .mp-btn { padding: 10px 0; font-size: 16px; font-weight: bold; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; color: #0f172a; }
+    .mp-btn:active { background: #cbd5e1; }
+    .login-submit-btn { width: 100%; padding: 15px; margin-top: 16px; background: #2563eb; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
+    .login-submit-btn:hover { background: #1d4ed8; }
 
-        .container { max-width: 1300px; margin: auto; padding: 20px; }
-        
-        .class-header-wrapper { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 20px; }
-        h1 { color: #333; margin: 0; font-size: clamp(24px, 5vw, 32px); }
-        .delete-class-btn { background-color: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: 0.2s; }
-        .delete-class-btn:hover { background-color: #dc2626; }
-        
-        /* Layout Grid for Leaderboard */
-        .layout-wrapper { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-        .main-content { flex: 1; min-width: 60%; }
-        
-        /* Leaderboard Sidebar */
-        .leaderboard-sidebar { width: 280px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; position: sticky; top: 20px; }
-        .leaderboard-sidebar h3 { margin-top: 0; text-align: center; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; color: #1f2937; }
-        .lb-list { list-style: none; padding: 0; margin: 0; }
-        .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e5e7eb; }
-        .lb-rank { font-weight: bold; color: #6b7280; width: 25px; }
-        .lb-name { flex: 1; font-weight: bold; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lb-score { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-        .lb-item:nth-child(1) .lb-rank { color: #eab308; font-size: 18px; }
-        .lb-item:nth-child(2) .lb-rank { color: #9ca3af; font-size: 17px; }
-        .lb-item:nth-child(3) .lb-rank { color: #d97706; font-size: 16px; }
+    /* NAVBAR & DASHBOARD */
+    .navbar { background: #0f172a; padding: 10px 18px; display: flex; gap: 8px; overflow-x: auto; align-items: center; }
+    .class-tab { background: #334155; color: white; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+    .class-tab.active { background: #2563eb; box-shadow: 0 0 0 2px #93c5fd; }
+    .nav-btn { border: none; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; color: white; }
 
-        /* Controls */
-        .controls-section { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; }
-        .controls-section input[type="text"] { padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; flex: 1; min-width: 200px; max-width: 400px; outline: none; }
-        .controls-section button { padding: 12px 20px; font-size: 16px; background-color: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-        .controls-section button:hover { background-color: #1d4ed8; }
-        .controls-section .class-report-btn { background-color: #8b5cf6; }
-        .controls-section .class-report-btn:hover { background-color: #7c3aed; }
+    .container { max-width: 1320px; margin: auto; padding: 18px; }
+    .header-box { background: white; padding: 14px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .teacher-badge { background: #e0e7ff; color: #3730a3; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+    
+    .controls-section { background: white; padding: 14px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; }
+    .ctrl-btn { padding: 10px 14px; font-size: 14px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
+    .ctrl-btn:hover { opacity: 0.92; }
+    
+    /* BULK BAR WITH ACTIVE BADGES & CLEAR BUTTON */
+    .bulk-bar { background: #eff6ff; border: 2px solid #bfdbfe; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; overflow-x: auto; }
+    .bulk-btn { position: relative; width: 44px; height: 44px; border: 1px solid #93c5fd; border-radius: 8px; background: white; cursor: pointer; font-size: 19px; flex-shrink: 0; transition: transform 0.1s; touch-action: manipulation; display: flex; align-items: center; justify-content: center; }
+    .bulk-btn:active { transform: scale(0.92); }
+    .bulk-btn.active { background: #dbeafe; border: 2px solid #2563eb; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+    .bulk-badge { position: absolute; top: -7px; right: -7px; background: #2563eb; color: white; font-size: 11px; font-weight: 900; width: 21px; height: 21px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .clear-class-btn { background: #dc2626; color: white; border: none; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; margin-left: auto; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(220,38,38,0.3); }
+    .clear-class-btn:hover { background: #b91c1c; }
 
-        /* Student Card */
-        .student-card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; }
-        .student-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #f3f4f6; padding-bottom: 10px; gap: 10px; }
-        .student-info { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1; }
-        .student-name { font-weight: bold; font-size: 18px; color: #2563eb; min-width: 140px; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; transition: 0.2s; }
-        .student-name:hover { color: #1d4ed8; background-color: #eff6ff; border-radius: 4px; padding: 2px 5px; }
-        
-        .score-input { width: 65px; padding: 6px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; outline: none; transition: 0.2s; }
-        .score-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
-        .score-label { font-size: 11px; color: #64748b; margin-bottom: 2px; text-align: center; font-weight: bold;}
-        .input-wrapper { display: flex; flex-direction: column; align-items: center; }
-        
-        .percentage-badge { font-size: 14px; font-weight: bold; padding: 6px 12px; border-radius: 20px; white-space: nowrap; }
-        .perc-high { background-color: #dcfce7; color: #166534; }
-        .perc-mid { background-color: #fef08a; color: #854d0e; }
-        .perc-low { background-color: #fee2e2; color: #991b1b; }
-        .perc-none { background-color: #f3f4f6; color: #6b7280; }
-        
-        .student-actions-wrapper { display: flex; gap: 8px; }
-        .edit-btn { background: #e0f2fe; border: none; color: #0369a1; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
-        .edit-btn:hover { background-color: #bae6fd; color: #0c4a6e; }
-        .reset-student-btn { background: #fef08a; border: none; color: #854d0e; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
-        .reset-student-btn:hover { background-color: #fde047; color: #713f12; }
-        .delete-btn { background: #fef2f2; border: none; color: #ef4444; cursor: pointer; font-size: 18px; padding: 8px 12px; border-radius: 5px; transition: 0.2s; }
-        .delete-btn:hover { background-color: #fee2e2; color: #b91c1c; }
+    /* BANNERS */
+    .history-edit-banner { display: none; background: #fef08a; color: #854d0e; border: 2px solid #eab308; padding: 12px 18px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+    .readonly-banner { display: none; background: #dbeafe; color: #1e40af; border: 2px solid #3b82f6; padding: 12px 18px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 
-        /* Icons Container */
-        .icons-container { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-start; }
-        .icon-btn { position: relative; width: 50px; height: 50px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 22px; transition: 0.1s; }
-        .icon-btn:active { transform: scale(0.95); }
-        .icon-btn.active { background-color: #e0f2fe; border-color: #93c5fd; }
-        .badge { position: absolute; top: -10px; right: -10px; background-color: #ef4444; color: white; font-size: 14px; font-weight: bold; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid white; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
-        
-        /* Reports */
-        .report-view { display: none; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 900px; margin: 20px auto; }
-        .report-header { text-align: center; border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
-        .report-header h2 { margin: 0 0 10px 0; color: #111827; font-size: 28px; }
-        .report-date { color: #6b7280; font-size: 16px; }
-        
-        .report-stats { display: flex; justify-content: space-around; background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 30px; text-align: center; flex-wrap: wrap; gap: 15px; }
-        .stat-box h3 { margin: 0; font-size: 28px; }
-        .stat-box p { margin: 5px 0 0 0; color: #6b7280; text-transform: uppercase; font-size: 11px; font-weight: bold; }
-        .stat-positive { color: #16a34a; }
-        .stat-negative { color: #dc2626; }
-        .stat-quiz { color: #8b5cf6; }
-        .stat-project { color: #f59e0b; }
+    .layout-wrapper { display: flex; gap: 20px; align-items: flex-start; }
+    .main-content { flex: 1; min-width: 0; }
+    .leaderboard-sidebar { width: 290px; background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; position: sticky; top: 15px; flex-shrink: 0; }
+    .lb-list { list-style: none; padding: 0; margin: 0 0 12px 0; }
+    .lb-item { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px dashed #e2e8f0; font-size: 13px; font-weight: bold; }
 
-        .report-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .report-list { list-style: none; padding: 0; margin: 0; width: 100%;}
-        .report-list h4 { margin-top: 0; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-        .report-list li { padding: 12px 0; border-bottom: 1px dashed #f3f4f6; display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
-        .report-item-info { display: flex; align-items: center; gap: 12px; }
-        .report-count { font-weight: bold; background: #f3f4f6; padding: 4px 12px; border-radius: 15px;}
-        
-        .class-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .class-table th, .class-table td { padding: 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .class-table th { background-color: #f8fafc; font-weight: bold; color: #374151; }
-        .class-table tr:hover { background-color: #f3f4f6; }
+    /* STUDENT CARD & NEGATIVE RED ALERT STYLING */
+    .student-card { background: white; padding: 14px 18px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #e2e8f0; transition: 0.2s; }
+    .student-card.star-card { border: 2px solid #eab308; background: #fefce8; }
+    .student-card.neg-only-card { border: 2px solid #ef4444 !important; background: #fef2f2 !important; box-shadow: 0 3px 10px rgba(239, 68, 68, 0.15); }
+    
+    .student-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; gap: 10px; }
+    .student-card.neg-only-card .student-header { border-bottom-color: #fecaca; }
+    .student-info { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    
+    .student-name { font-weight: 800; font-size: 17px; color: #1d4ed8; cursor: pointer; min-width: 170px; }
+    .student-name.is-star { color: #b45309; }
+    .student-name.is-neg-only { color: #dc2626 !important; text-decoration: underline; text-decoration-color: #ef4444; }
+    
+    .score-input { width: 60px; padding: 5px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; background: white; }
+    .score-input:disabled { background: #f1f5f9; color: #475569; cursor: not-allowed; }
 
-        .report-actions { display: flex; gap: 15px; justify-content: center; margin-top: 40px; }
-        .btn-print { background-color: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        .btn-print:hover { background-color: #059669; }
-        .btn-back { background-color: #6b7280; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        .btn-back:hover { background-color: #4b5563; }
-        .reset-all-btn { position: fixed; bottom: 15px; right: 15px; background-color: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 1000; }
+    .percentage-badge { font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 20px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border: 2px solid transparent; transition: 0.15s; }
+    .percentage-badge:hover { transform: scale(1.05); border-color: #475569; }
+    .percentage-badge.readonly-badge { cursor: default; }
+    .percentage-badge.readonly-badge:hover { transform: none; border-color: transparent; }
+    .perc-high { background: #dcfce7; color: #166534; }
+    .perc-mid { background: #fef08a; color: #854d0e; }
+    .perc-low { background: #fee2e2; color: #991b1b; }
+    .perc-critical { background: #dc2626 !important; color: #ffffff !important; box-shadow: 0 2px 6px rgba(220,38,38,0.4); }
+    .perc-none { background: #f1f5f9; color: #64748b; }
+    .perc-manual { border: 2px dashed #1e293b !important; }
 
-        @media print { body { background: white; padding: 0; } .no-print { display: none !important; } .report-view { box-shadow: none; padding: 0; margin: 0; max-width: 100%; display: block; } #mainView, .navbar { display: none !important; } }
-        @media (max-width: 800px) { .layout-wrapper { flex-direction: column; } .leaderboard-sidebar { width: 100%; position: static; box-sizing: border-box; } .report-details-grid { grid-template-columns: 1fr; } }
-    </style>
+    .manual-edit-btn { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 5px 9px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .manual-edit-btn:hover { background: #bae6fd; }
+
+    .icons-container { display: flex; flex-wrap: wrap; gap: 8px; }
+    .icon-btn { position: relative; width: 48px; height: 48px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; cursor: pointer; font-size: 20px; transition: transform 0.1s; touch-action: manipulation; }
+    .icon-btn:active { transform: scale(0.92); }
+    .icon-btn.active { background: #e0f2fe; border-color: #3b82f6; }
+    .icon-btn.readonly-icon { cursor: default; }
+    .icon-btn.readonly-icon:active { transform: none; }
+    .badge { position: absolute; top: -7px; right: -7px; background: #ef4444; color: white; font-size: 12px; font-weight: bold; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+    /* TOAST FEEDBACK NOTIFICATION */
+    #actionToast { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); padding: 10px 22px; border-radius: 30px; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 5px 15px rgba(0,0,0,0.25); z-index: 9999; display: none; pointer-events: none; }
+
+    /* REPORTS */
+    .report-view, #adminDashboardView { display: none; background: white; padding: 30px; border-radius: 12px; max-width: 1100px; margin: 20px auto; }
+    .school-print-banner { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #1e293b; padding-bottom: 12px; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
+    .school-print-banner img { max-height: 80px; }
+    .report-stats { display: flex; justify-content: space-around; background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; flex-wrap: wrap; gap: 10px; border: 1px solid #e2e8f0; }
+    .class-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    .class-table th, .class-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
+    .class-table th:first-child, .class-table td:first-child { text-align: left; }
+    .class-table th { background: #f1f5f9; }
+    .row-neg-only { background-color: #fef2f2 !important; }
+    .row-neg-only td:first-child { color: #dc2626 !important; font-weight: 900 !important; }
+
+    @media print {
+        body { background: white; }
+        .no-print, #actionToast { display: none !important; }
+        .report-view { display: block; padding: 0; margin: 0; }
+        #mainView, .navbar, #adminDashboardView, #loginView { display: none !important; }
+    }
+    @media (max-width: 820px) { .layout-wrapper { flex-direction: column; } .leaderboard-sidebar { width: 100%; position: static; } }
+</style>
 </head>
 <body>
 
-    <!-- تم تحديث رفع الملفات ليدعم الإكسل والوورد -->
-    <input type="file" id="fileUpload" accept=".txt,.csv,.xlsx,.xls,.docx" style="display:none;" onchange="handleImport(event)">
+<div id="actionToast"></div>
+<datalist id="allStudentsList"></datalist>
+<input type="file" id="fileUpload" accept=".txt,.csv,.xlsx,.xls,.docx" style="display:none;" onchange="handleImport(event)">
 
+<!-- ================= 1. LOGIN SCREEN ================= -->
+<div id="loginView">
+    <div class="login-container">
+        <i class="fa-solid fa-graduation-cap" style="font-size:38px; color:#2563eb;"></i>
+        <h2>EDUGATES Teacher Login</h2>
+        <p style="color:#64748b; font-size:13px; margin:0 0 15px 0;">Select your name, subject, and enter your 5-digit PIN</p>
+
+        <label class="field-label">1. Select Teacher Name:</label>
+        <select id="loginTeacherSelect" class="login-select">
+            <option value="Mr. Ibrahim Abdullatif" selected>Mr. Ibrahim Abdullatif (Admin)</option>
+            <option value="Mr. Abdallah">Mr. Abdallah (School Principal)</option>
+            <option value="Mr. Walid Abdulnaser">Mr. Walid Abdulnaser</option>
+            <option value="Mr. Ahmed Mohamed">Mr. Ahmed Mohamed</option>
+            <option value="Mr. Ahmed Mousa">Mr. Ahmed Mousa</option>
+            <option value="Mr. Yousef Muaidh">Mr. Yousef Muaidh</option>
+            <option value="Mr. Mohamed Hassan">Mr. Mohamed Hassan</option>
+            <option value="Mr. Mohamed Abdulaziz">Mr. Mohamed Abdulaziz</option>
+            <option value="Mr. Mohamed Abdullah S">Mr. Mohamed Abdullah S</option>
+            <option value="Mr. Mohamed Abdullah A">Mr. Mohamed Abdullah A</option>
+            <option value="Mr. Mahmoud Mostafa">Mr. Mahmoud Mostafa</option>
+            <option value="Mr. Fahd Ali">Mr. Fahd Ali</option>
+            <option value="Mr. Walid Abdulhadi">Mr. Walid Abdulhadi</option>
+            <option value="Mr. Osama Mostafa">Mr. Osama Mostafa</option>
+            <option value="Mr. Salah Mahmoud">Mr. Salah Mahmoud</option>
+            <option value="Mr. Mohamed Ahmed">Mr. Mohamed Ahmed</option>
+            <option value="Mr. Abed Saleem">Mr. Abed Saleem</option>
+            <option value="Mr. Mohamed Abrar">Mr. Mohamed Abrar</option>
+            <option value="Mr. Magdy Abdulati">Mr. Magdy Abdulati</option>
+            <option value="Mr. Ali Rashid">Mr. Ali Rashid</option>
+            <option value="Mr. Ali Abutaleb">Mr. Ali Abutaleb</option>
+            <option value="Mr. Mostafa Abdulaziz">Mr. Mostafa Abdulaziz</option>
+            <option value="Mr. Mazen Fathalrahman">Mr. Mazen Fathalrahman</option>
+        </select>
+
+        <label class="field-label">2. Select Subject:</label>
+        <select id="loginSubjectSelect" class="login-select">
+            <option value="Science" selected>Science</option>
+            <option value="Math">Math</option>
+            <option value="English">English</option>
+            <option value="Arabic">Arabic</option>
+            <option value="Islamic Studies">Islamic Studies</option>
+            <option value="Social Studies">Social Studies</option>
+            <option value="Physics">Physics</option>
+            <option value="Chemistry">Chemistry</option>
+            <option value="Biology">Biology</option>
+            <option value="Computer">Computer</option>
+            <option value="Art">Art</option>
+            <option value="PE">PE</option>
+            <option value="School Principal">School Principal</option>
+        </select>
+
+        <label class="field-label">3. Enter 5-Digit PIN Code:</label>
+        <input type="password" id="loginPinInput" class="login-input" placeholder="•••••" maxlength="5" onkeypress="if(event.key==='Enter') executeDirectLogin()">
+
+        <div class="mini-pad">
+            <button type="button" class="mp-btn" onclick="typeNum('1')">1</button>
+            <button type="button" class="mp-btn" onclick="typeNum('2')">2</button>
+            <button type="button" class="mp-btn" onclick="typeNum('3')">3</button>
+            <button type="button" class="mp-btn" onclick="typeNum('4')">4</button>
+            <button type="button" class="mp-btn" onclick="typeNum('5')">5</button>
+            <button type="button" class="mp-btn" onclick="typeNum('6')">6</button>
+            <button type="button" class="mp-btn" onclick="typeNum('7')">7</button>
+            <button type="button" class="mp-btn" onclick="typeNum('8')">8</button>
+            <button type="button" class="mp-btn" onclick="typeNum('9')">9</button>
+            <button type="button" class="mp-btn" onclick="typeNum('0')">0</button>
+        </div>
+        <button type="button" onclick="clearPinBox()" style="margin-top:6px; background:none; border:none; color:#dc2626; cursor:pointer; font-weight:bold;">Clear PIN</button>
+
+        <div id="loginErrorMsg" style="color:#dc2626; font-weight:bold; font-size:13px; min-height:18px; margin-top:4px;"></div>
+
+        <button type="button" class="login-submit-btn" onclick="executeDirectLogin()">Enter Dashboard <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+</div>
+
+<!-- ================= 2. MAIN DASHBOARD ================= -->
+<div id="dashboardView" style="display:none;">
     <div class="navbar no-print" id="navbar"></div>
 
     <div class="container" id="mainView">
-        <div class="class-header-wrapper no-print">
-            <h1 id="classTitle">Class Tracker</h1>
-            <button class="delete-class-btn" onclick="deleteCurrentClass()" title="Delete this entire class"><i class="fa-solid fa-trash"></i> Delete Class</button>
+        <!-- Admin Read-Only Mode Banner -->
+        <div id="readOnlyBanner" class="readonly-banner no-print">
+            <div><i class="fa-solid fa-eye"></i> <strong>وضع المشاهدة فقط (Admin Read-Only View):</strong> أنت تستعرض فصول وتقارير المعلم (<span id="roTeacherName"></span>) — التعديل مقفل لحماية بيانات المعلم.</div>
+            <button class="ctrl-btn" style="background:#1e40af; padding:6px 14px;" onclick="exitAdminViewToPanel()"><i class="fa-solid fa-arrow-left"></i> العودة للوحة الإدارة</button>
         </div>
-        
+
+        <div class="header-box no-print">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <h1 id="classTitle" style="margin:0; font-size:24px;">GRADE 5C</h1>
+                <span class="teacher-badge" id="teacherBadge"></span>
+                <span id="interactionHint" style="font-size:12px; color:#475569; background:#f1f5f9; padding:5px 10px; border-radius:6px; font-weight:bold;">
+                    💡 Click/Tap = Add (+1) | Right-Click or Long-Press = Remove (-1)
+                </span>
+            </div>
+            <div id="headerClassActions" style="display:flex; gap:8px;">
+                <button class="ctrl-btn" style="background:#10b981;" onclick="promptNewCustomClass()"><i class="fa-solid fa-plus"></i> Custom Class</button>
+                <button class="ctrl-btn" style="background:#ef4444;" onclick="deleteCurrentClass()"><i class="fa-solid fa-trash"></i> Delete Class</button>
+            </div>
+        </div>
+
+        <!-- History Edit Banner -->
+        <div id="historyBanner" class="history-edit-banner no-print"></div>
+
         <div class="controls-section no-print">
-            <input type="text" id="newStudentName" placeholder="Enter new student name...">
-            <button onclick="addStudent()"><i class="fa-solid fa-plus"></i> Add Student</button>
-            <button class="class-report-btn" onclick="openClassReport()"><i class="fa-solid fa-chart-bar"></i> Class Report</button>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="date" id="saveDatePicker" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;" title="Select date to save">
+                <button class="ctrl-btn" style="background:#059669;" id="saveDayBtn" onclick="saveAndClearDay()"><i class="fa-solid fa-calendar-check"></i> Save & Clear Day</button>
+                <select id="historyDropdown" onchange="viewHistory(this.value)" style="padding:9px; border-radius:6px; border:2px solid #2563eb; font-weight:bold; background:#eff6ff; color:#1e3a8a; cursor:pointer;">
+                    <option value="">🟢 Current Active Board (Today)</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="newStudentName" placeholder="Student name..." style="padding:9px; border:1px solid #cbd5e1; border-radius:6px;">
+                <button class="ctrl-btn" id="addStudentBtn" onclick="addStudent()"><i class="fa-solid fa-user-plus"></i> Add Student</button>
+                <button class="ctrl-btn" style="background:#8b5cf6;" onclick="openClassReport()"><i class="fa-solid fa-table"></i> Class & W/M Report</button>
+            </div>
+        </div>
+
+        <!-- Bulk Bar with Counters & Clear All Button -->
+        <div class="bulk-bar no-print" id="bulkActionBar">
+            <div style="white-space:nowrap;">
+                <strong style="color:#1e3a8a; display:block; font-size:14px;"><i class="fa-solid fa-users"></i> All Class Students:</strong>
+                <span style="font-size:10px; color:#475569;">Tap/Left: +1 All | Hold/Right: -1 All</span>
+            </div>
+            <button id="bulkModeBtn" class="ctrl-btn" style="background:#10b981; padding:6px 12px; white-space:nowrap;" onclick="toggleBulkMode()">Tap Mode: ADD (+)</button>
+            <div id="bulkIconsContainer" style="display:flex; gap:8px; align-items:center;"></div>
+            <button class="clear-class-btn" onclick="clearAllClassInteractions()" title="Clear all interactions for the entire class"><i class="fa-solid fa-broom"></i> Clear All</button>
         </div>
 
         <div class="layout-wrapper">
             <div class="main-content" id="app"></div>
-            
             <div class="leaderboard-sidebar no-print">
-                <h3><i class="fa-solid fa-trophy" style="color:#eab308"></i> Top Students</h3>
-                <p style="font-size: 12px; text-align: center; color: #64748b; margin-top: -5px; margin-bottom: 10px;">Requires &ge; 90% and Positives &gt; Negatives</p>
+                <h3 style="margin-top:0; text-align:center;"><i class="fa-solid fa-trophy" style="color:#eab308"></i> Top Students</h3>
                 <ul class="lb-list" id="leaderboardList"></ul>
+                <button class="ctrl-btn" style="width:100%; justify-content:center;" onclick="openLeaderboardReport()"><i class="fa-solid fa-print"></i> Print Top Students</button>
             </div>
         </div>
     </div>
 
-    <!-- Individual Student Report -->
+    <!-- STUDENT REPORT -->
     <div class="report-view" id="studentReportView">
-        <div class="report-header">
-            <h2>Student Behavior & Academic Report</h2>
-            <h3 id="r-studentName" style="color: #2563eb; margin: 5px 0;"></h3>
-            <div class="report-date" id="r-date"></div>
-        </div>
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;">Student Behavior & Academic Report</h2>
+        <h3 id="r-studentName" style="text-align:center; color:#2563eb; margin:6px 0;"></h3>
+        <p id="r-meta" style="text-align:center; color:#64748b; font-weight:bold;"></p>
         <div class="report-stats">
-            <div class="stat-box"><h3 id="r-pos-score" class="stat-positive">0</h3><p>Positives</p></div>
-            <div class="stat-box"><h3 id="r-quiz-score" class="stat-quiz">-</h3><p>Quiz / WS Score</p></div>
-            <div class="stat-box"><h3 id="r-project-score" class="stat-project">-</h3><p>Project Score</p></div>
-            <div class="stat-box"><h3 id="r-perc">0%</h3><p>Behavior Score</p></div>
-            <div class="stat-box"><h3 id="r-neg-score" class="stat-negative">0</h3><p>Needs Improvement</p></div>
+            <div><h3 id="r-pos-score" style="color:#16a34a; margin:0;">0</h3><small>Positives</small></div>
+            <div><h3 id="r-neg-score" style="color:#dc2626; margin:0;">0</h3><small>Negatives</small></div>
+            <div><h3 id="r-quiz-score" style="color:#8b5cf6; margin:0;">-</h3><small>Quiz</small></div>
+            <div><h3 id="r-project-score" style="color:#f59e0b; margin:0;">-</h3><small>Project</small></div>
+            <div><h3 id="r-weekly-avg" style="color:#2563eb; margin:0;">-</h3><small>Weekly Avg</small></div>
+            <div><h3 id="r-monthly-avg" style="color:#2563eb; margin:0;">-</h3><small>Monthly Avg</small></div>
+            <div><h3 id="r-perc" style="margin:0;">0%</h3><small>Current Score</small></div>
         </div>
-        <div class="report-details-grid">
-            <div><ul class="report-list" id="r-positive-list"></ul></div>
-            <div><ul class="report-list" id="r-negative-list"></ul></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+            <ul id="r-positive-list" style="list-style:none; padding:0;"></ul>
+            <ul id="r-negative-list" style="list-style:none; padding:0;"></ul>
         </div>
-        <div class="report-actions no-print">
-            <button class="btn-back" onclick="closeReports()"><i class="fa-solid fa-arrow-left"></i> Back</button>
-            <button class="btn-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Print PDF</button>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
+            <button class="ctrl-btn" id="btnOpenGlobal" style="background:#8b5cf6; display:none;" onclick="openGlobalReportFromStudent()">Global Report (All Subjects)</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
         </div>
     </div>
 
-    <!-- Comprehensive Class Report -->
+    <!-- CLASS REPORT -->
     <div class="report-view" id="classReportView">
-        <div class="report-header">
-            <h2>Comprehensive Class Report</h2>
-            <h3 id="cr-className" style="color: #8b5cf6; margin: 5px 0;"></h3>
-            <div class="report-date" id="cr-date"></div>
-        </div>
-        
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;">Class Comprehensive & Averages Report</h2>
+        <h3 id="cr-className" style="text-align:center; color:#8b5cf6; margin:6px 0;"></h3>
         <table class="class-table">
-            <thead>
-                <tr>
-                    <th>Student Name</th>
-                    <th>Quiz Score</th>
-                    <th>Project Score</th>
-                    <th>Positives</th>
-                    <th>Needs Impr.</th>
-                    <th>Behavior Score</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Student Name</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Weekly Avg</th><th>Monthly Avg</th><th>Score</th></tr></thead>
             <tbody id="cr-table-body"></tbody>
         </table>
-
-        <div class="report-actions no-print">
-            <button class="btn-back" onclick="closeReports()"><i class="fa-solid fa-arrow-left"></i> Back</button>
-            <button class="btn-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Print PDF</button>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
         </div>
     </div>
 
-    <button class="reset-all-btn no-print" onclick="hardReset()">Reset All Data</button>
+    <!-- TOP STUDENTS REPORT -->
+    <div class="report-view" id="leaderboardReportView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;">Top Students Honor Roll</h2>
+        <h3 id="lbr-className" style="text-align:center; color:#ca8a04; margin:6px 0;"></h3>
+        <table class="class-table">
+            <thead><tr><th>Rank</th><th>Student Name</th><th>Behavior Score</th><th>Positive Icons</th></tr></thead>
+            <tbody id="lbr-table-body"></tbody>
+        </table>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+        </div>
+    </div>
 
-    <script>
-        const behaviors = [
-            { id: 'leader', type: 'positive', icon: 'fa-solid fa-crown', color: '#2563eb', title: 'Leadership' },
-            { id: 'creative', type: 'positive', icon: 'fa-solid fa-lightbulb', color: '#eab308', title: 'Creative Idea' },
-            { id: 'participation', type: 'positive', icon: 'fa-solid fa-hand', color: '#16a34a', title: 'Participation' },
-            { id: 'homework', type: 'positive', icon: 'fa-solid fa-book-open', color: '#2563eb', title: 'Homework Done' },
-            { id: 'strong', type: 'positive', icon: 'fa-solid fa-dumbbell', color: '#2563eb', title: 'Strong Effort' },
-            { id: 'help', type: 'positive', icon: 'fa-solid fa-handshake', color: '#f97316', title: 'Helpful' },
-            { id: 'star', type: 'positive', icon: 'fa-solid fa-star', color: '#eab308', title: 'Star Student' },
-            { id: 'late', type: 'negative', icon: 'fa-solid fa-clock', color: '#ef4444', title: 'Late' },
-            { id: 'missing', type: 'negative', icon: 'fa-solid fa-triangle-exclamation', color: '#ef4444', title: 'Missing Materials' },
-            { id: 'mute', type: 'negative', icon: 'fa-solid fa-volume-xmark', color: '#1f2937', title: 'Talking' },
-            { id: 'search', type: 'negative', icon: 'fa-solid fa-magnifying-glass', color: '#16a34a', title: 'Distracted' },
-            { id: 'play', type: 'negative', icon: 'fa-solid fa-users', color: '#1f2937', title: 'Playing around' },
-            { id: 'food', type: 'negative', icon: 'fa-solid fa-burger', color: '#1f2937', title: 'Eating/Drinking' },
-            { id: 'run', type: 'negative', icon: 'fa-solid fa-person-running', color: '#1f2937', title: 'Out of seat' }
-        ];
+    <!-- GLOBAL STUDENT REPORT -->
+    <div class="report-view" id="globalReportView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;">Global Multi-Subject Student Report</h2>
+        <h3 id="gr-studentName" style="text-align:center; color:#2563eb; margin:6px 0;"></h3>
+        <div class="no-print" style="text-align:center; margin:12px 0;">
+            <strong>Filter Subject: </strong>
+            <select id="gr-subjectFilter" onchange="generateGlobalReportHTML(this.value)" style="padding:6px; font-weight:bold;"></select>
+        </div>
+        <div class="report-stats">
+            <div><h3 id="gr-pos-score" style="color:#16a34a; margin:0;">0</h3><small>Total Positives</small></div>
+            <div><h3 id="gr-neg-score" style="color:#dc2626; margin:0;">0</h3><small>Total Negatives</small></div>
+            <div><h3 id="gr-perc" style="color:#2563eb; margin:0;">0%</h3><small>Global Average</small></div>
+        </div>
+        <table class="class-table">
+            <thead><tr><th>Subject</th><th>Teacher</th><th>Class</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Score</th></tr></thead>
+            <tbody id="gr-table-body"></tbody>
+        </table>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeGlobalReport()">Back</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+        </div>
+    </div>
 
-        const defaultClass5C = [
-            { id: 1, name: "Adel Nasif" }, { id: 2, name: "Adam Mohamed Abo samrah" },
-            { id: 3, name: "Abdul Majid Mohamed Ali" }, { id: 4, name: "ASER TAMER ABDULBAQI" },
-            { id: 5, name: "Azeez Mohd Abuzanouneh" }, { id: 6, name: "Ibrahim Mohamed Abdel Latif Ahmed" },
-            { id: 7, name: "Faris Mohammed Mansour" }, { id: 8, name: "Ghaith AbdelRahman Abukoush" },
-            { id: 9, name: "Mazen Manhal AlAsmar" }, { id: 10, name: "MOHAMMED TURKI ALFARSI" },
-            { id: 11, name: "Mu'ath Abubakar Galant" }, { id: 12, name: "Omar Anas Mowakkea" },
-            { id: 13, name: "Sanad Yarob Ali Fareed Khlief" }, { id: 14, name: "Thonayan Mohamed Almotairy" },
-            { id: 15, name: "Turki Khaled Bayahya" }, { id: 16, name: "Yahya Moustafa Touni" },
-            { id: 17, name: "Yazeed Ahmed" }, { id: 18, name: "Jehad Deeb" }
-        ];
+    <!-- GLOBAL CLASS REPORT -->
+    <div class="report-view" id="globalClassReportView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;">Global Class Report (All Subjects)</h2>
+        <h3 id="gcr-className" style="text-align:center; color:#8b5cf6; margin:6px 0;"></h3>
+        <div class="no-print" style="text-align:center; margin:12px 0;">
+            <strong>Filter Subject: </strong>
+            <select id="gcr-subjectFilter" onchange="generateGlobalClassReportHTML(this.value)" style="padding:6px; font-weight:bold;"></select>
+        </div>
+        <table class="class-table">
+            <thead><tr><th>Student Name</th><th>Recorded Subjects</th><th>Total Positives</th><th>Total Negatives</th><th>Global Average</th></tr></thead>
+            <tbody id="gcr-table-body"></tbody>
+        </table>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="openAdminDashboard()">Back to Admin</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+        </div>
+    </div>
 
-        let appData = {
-            classes: { "Class 5C": { students: defaultClass5C, scores: {}, quizScores: {}, projectScores: {} } },
-            currentClass: "Class 5C"
-        };
+    <!-- ADMIN DASHBOARD -->
+    <div id="adminDashboardView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;"><i class="fa-solid fa-crown" style="color:#eab308;"></i> Admin & Global Reports Center</h2>
+        
+        <div style="background:#f8fafc; padding:15px; border-radius:10px; margin:15px 0; border:1px solid #e2e8f0;" class="no-print">
+            <h4 style="margin:0 0 8px 0;">1. Search Any Student Across All Subjects:</h4>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="adminSearchInput" list="allStudentsList" placeholder="Type student name..." style="flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                <button class="ctrl-btn" style="background:#8b5cf6;" onclick="adminSearchGlobalReport()">Student Global Report</button>
+            </div>
+        </div>
 
-        try {
-            const savedData = localStorage.getItem('behaviorTrackerData');
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
-                if (parsed && parsed.classes && Object.keys(parsed.classes).length > 0) { appData = parsed; }
-            }
-        } catch (e) { console.error("Failed to load data", e); }
+        <div style="background:#f8fafc; padding:15px; border-radius:10px; margin:15px 0; border:1px solid #e2e8f0;" class="no-print">
+            <h4 style="margin:0 0 8px 0;">2. Open Global Class Report (All Subjects):</h4>
+            <div style="display:flex; gap:8px;">
+                <select id="adminClassSelect" style="flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;"></select>
+                <button class="ctrl-btn" style="background:#059669;" onclick="adminSearchGlobalClassReport()">Class Global Report</button>
+            </div>
+        </div>
 
-        if (appData.classes["Class 5C"] && appData.classes["Class 5C"].students.length === 0) {
-            appData.classes["Class 5C"].students = defaultClass5C;
+        <h4 style="margin:15px 0 8px 0;">3. All Teachers (Click any teacher to view their classes & reports in Read-Only mode):</h4>
+        <table class="class-table">
+            <thead><tr><th>Teacher Name</th><th>Subject</th><th>Classes</th><th>Recorded Actions</th><th class="no-print">View Only</th></tr></thead>
+            <tbody id="admin-table-body"></tbody>
+        </table>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;" class="no-print">
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back to My Board</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================= SMART INTERACTION ENGINE (LEFT-CLICK / RIGHT-CLICK / TAP / LONG-PRESS) =================
+let toastTimer = null;
+function showToast(msg, isRemove = false) {
+    const t = document.getElementById('actionToast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.background = isRemove ? '#dc2626' : '#059669';
+    t.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.display = 'none'; }, 1300);
+}
+
+function attachSmartInteraction(btnElement, onAdd, onRemove) {
+    let pressTimer = null;
+    let longPressTriggered = false;
+
+    btnElement.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (pressTimer) clearTimeout(pressTimer);
+        onRemove();
+    });
+
+    btnElement.addEventListener('touchstart', (e) => {
+        longPressTriggered = false;
+        pressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            onRemove();
+        }, 500);
+    }, { passive: true });
+
+    btnElement.addEventListener('touchend', (e) => {
+        if (pressTimer) clearTimeout(pressTimer);
+        if (longPressTriggered) {
+            e.preventDefault();
+            e.stopPropagation();
         }
+    });
 
-        if (!appData.classes[appData.currentClass]) { appData.currentClass = Object.keys(appData.classes)[0]; }
-        Object.keys(appData.classes).forEach(cls => {
-            if (!appData.classes[cls].quizScores) appData.classes[cls].quizScores = {};
-            if (!appData.classes[cls].projectScores) appData.classes[cls].projectScores = {};
+    btnElement.addEventListener('touchmove', () => {
+        if (pressTimer) clearTimeout(pressTimer);
+    }, { passive: true });
+
+    btnElement.addEventListener('click', (e) => {
+        if (longPressTriggered) {
+            longPressTriggered = false;
+            return;
+        }
+        onAdd();
+    });
+}
+
+// ================= DASHBOARD & REPORTS LOGIC =================
+const bannerHTML = `
+<div class="school-print-banner">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <img src="image_822203.png" alt="EDUGATES" onerror="this.style.display='none'">
+        <div>
+            <h2 style="margin:0; font-size:20px;">EDUGATES International School</h2>
+            <p style="margin:2px 0 0 0; font-size:12px; color:#475569;">Under the Supervision of Ministry of Education | License No. 229/S Authorized Curriculum: American</p>
+        </div>
+    </div>
+    <div style="font-weight:bold; font-size:12px; text-align:right;">وزارة التعليم<br>Cognia Accredited</div>
+</div>`;
+
+document.querySelectorAll('.school-banner-slot').forEach(s => s.innerHTML = bannerHTML);
+document.getElementById('saveDatePicker').value = new Date().toISOString().split('T')[0];
+
+function openMainDashboard() {
+    appData = globalData[currentTeacher];
+    if (!appData.classes || Object.keys(appData.classes).length === 0) {
+        populateAllSchoolClasses(appData);
+    }
+    if (!appData.currentClass || !appData.classes[appData.currentClass]) {
+        appData.currentClass = Object.keys(appData.classes)[0];
+    }
+
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('dashboardView').style.display = 'block';
+    hideAllViews();
+    document.getElementById('mainView').style.display = 'block';
+    document.getElementById('teacherBadge').innerHTML = `<i class="fa-solid fa-user-tie"></i> ${currentTeacher} | <strong>${appData.subject || 'Science'}</strong>`;
+
+    isHistoryMode = false; historyDate = null;
+    buildAutocompleteList();
+    renderNavbar();
+    renderClass();
+}
+
+function exitAdminViewToPanel() {
+    if (adminRealName) {
+        currentTeacher = adminRealName;
+        adminRealName = null;
+        isAdminImpersonating = false;
+        openMainDashboard();
+        openAdminDashboard();
+    }
+}
+
+function getActiveData() {
+    if (!appData.currentClass || !appData.classes[appData.currentClass]) return null;
+    const cls = appData.classes[appData.currentClass];
+    if (isHistoryMode && historyDate && cls.history && cls.history[historyDate]) return cls.history[historyDate];
+    return cls;
+}
+
+function calculateStatsFromData(sId, dObj) {
+    let pos = 0, neg = 0, hasData = false;
+    if (dObj && dObj.scores && dObj.scores[sId]) {
+        behaviors.forEach(b => {
+            const c = dObj.scores[sId][b.id] || 0;
+            if (c > 0) hasData = true;
+            if (b.type === 'positive') pos += c; else neg += c;
         });
+    }
 
-        function saveData() { localStorage.setItem('behaviorTrackerData', JSON.stringify(appData)); }
+    let perc = 100, isManual = false;
+    if (pos > 0 || neg > 0) {
+        perc = 100 - (neg * 5) + (pos * 2);
+        if (neg > 0 && perc > 95) perc = 95;
+        if (neg === 0 && perc > 100) perc = 100;
+        if (perc < 70) perc = 70;
+    }
 
-        function hardReset() {
-            if (confirm("WARNING: This will delete ALL classes and students. Are you sure?")) {
-                localStorage.clear(); location.reload();
+    if (dObj && dObj.manualScores && dObj.manualScores[sId] !== undefined && dObj.manualScores[sId] !== null && dObj.manualScores[sId] !== '') {
+        perc = Number(dObj.manualScores[sId]);
+        isManual = true;
+        hasData = true;
+    }
+
+    if (dObj && dObj.quizScores && dObj.quizScores[sId]) hasData = true;
+    if (dObj && dObj.projectScores && dObj.projectScores[sId]) hasData = true;
+
+    const isNegativeOnly = (neg > 0 && pos === 0) || (isManual && perc < 70);
+
+    let colorClass = "perc-none", text = "No Data";
+    if (hasData) {
+        if (isNegativeOnly || perc < 70) {
+            colorClass = "perc-critical";
+        } else if (perc >= 90) {
+            colorClass = "perc-high";
+        } else if (perc >= 80) {
+            colorClass = "perc-mid";
+        } else {
+            colorClass = "perc-low";
+        }
+        if (isManual) colorClass += " perc-manual";
+        text = `${isManual ? '✎ ' : ''}${perc}%${pos > 0 ? ' (+' + pos + ')' : ''}${neg > 0 && pos === 0 ? ' (-' + neg + ')' : ''}`;
+    }
+    return { positiveCount: pos, negativeCount: neg, percentage: perc, colorClass, text, netScore: pos - neg, isManual, hasData, isNegativeOnly };
+}
+
+function calculateStats(sId) { return calculateStatsFromData(sId, getActiveData()); }
+
+function renderNavbar() {
+    const nav = document.getElementById('navbar');
+    nav.innerHTML = '';
+    const readOnly = isReadOnlyView();
+
+    Object.keys(appData.classes).forEach(cName => {
+        const b = document.createElement('button');
+        b.className = `class-tab ${appData.currentClass === cName ? 'active' : ''}`;
+        b.textContent = cName;
+        b.onclick = () => { isHistoryMode = false; historyDate = null; appData.currentClass = cName; saveGlobal(); closeReports(); renderNavbar(); renderClass(); };
+        nav.appendChild(b);
+    });
+
+    let realUser = isAdminImpersonating ? adminRealName : currentTeacher;
+    if (ADMINS.includes(realUser)) {
+        if (isAdminImpersonating) {
+            const ex = document.createElement('button');
+            ex.className = 'nav-btn'; ex.style.background = '#f97316'; ex.style.marginLeft = 'auto';
+            ex.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Exit Teacher View (Back to Admin)';
+            ex.onclick = exitAdminViewToPanel;
+            nav.appendChild(ex);
+        } else {
+            const ad = document.createElement('button');
+            ad.className = 'nav-btn'; ad.style.background = '#eab308'; ad.style.color = '#422006'; ad.style.marginLeft = 'auto';
+            ad.innerHTML = '<i class="fa-solid fa-crown"></i> Admin Panel';
+            ad.onclick = openAdminDashboard;
+            nav.appendChild(ad);
+        }
+    }
+
+    if (!readOnly) {
+        const imp = document.createElement('button');
+        imp.className = 'nav-btn'; imp.style.background = '#8b5cf6';
+        if (!ADMINS.includes(realUser)) imp.style.marginLeft = 'auto';
+        imp.innerHTML = '<i class="fa-solid fa-file-import"></i> Import';
+        imp.onclick = () => document.getElementById('fileUpload').click();
+        nav.appendChild(imp);
+    }
+
+    const out = document.createElement('button');
+    out.className = 'nav-btn'; out.style.background = '#ef4444';
+    out.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Logout';
+    out.onclick = () => { delStore('EDUGATES_FINAL_USER'); document.getElementById('dashboardView').style.display = 'none'; document.getElementById('loginView').style.display = 'flex'; clearPinBox(); };
+    nav.appendChild(out);
+}
+
+function getClassBulkCount(behaviorId) {
+    const act = getActiveData();
+    if (!act) return 0;
+    const students = appData.classes[appData.currentClass].students || [];
+    if (students.length === 0) return 0;
+    let minCount = Infinity;
+    students.forEach(s => {
+        const c = (act.scores && act.scores[s.id] && act.scores[s.id][behaviorId]) || 0;
+        if (c < minCount) minCount = c;
+    });
+    return minCount === Infinity ? 0 : minCount;
+}
+
+function applyBulkBehavior(behaviorObj, mode) {
+    if (isReadOnlyView()) {
+        showToast("وضع المشاهدة فقط: لا يمكن تعديل تفاعلات المعلم", true);
+        return;
+    }
+    const act = getActiveData();
+    if (!act) return;
+    if (!act.scores) act.scores = {};
+    const students = appData.classes[appData.currentClass].students || [];
+    if (students.length === 0) return;
+
+    students.forEach(s => {
+        if (!act.scores[s.id]) act.scores[s.id] = {};
+        if (mode === 'add') {
+            act.scores[s.id][behaviorObj.id] = (act.scores[s.id][behaviorObj.id] || 0) + 1;
+        } else {
+            if (act.scores[s.id][behaviorObj.id] && act.scores[s.id][behaviorObj.id] > 0) {
+                act.scores[s.id][behaviorObj.id] -= 1;
+                if (act.scores[s.id][behaviorObj.id] <= 0) delete act.scores[s.id][behaviorObj.id];
             }
         }
+    });
 
-        function renderNavbar() {
-            const nav = document.getElementById('navbar');
-            nav.innerHTML = '';
-            
-            Object.keys(appData.classes).forEach(className => {
-                const btn = document.createElement('button');
-                btn.className = `class-tab ${appData.currentClass === className ? 'active' : ''}`;
-                btn.textContent = className;
-                btn.onclick = () => switchClass(className);
-                nav.appendChild(btn);
+    saveGlobal();
+    renderClass();
+    if (mode === 'add') showToast(`Added "${behaviorObj.title}" (+1) to ALL students`, false);
+    else showToast(`Removed "${behaviorObj.title}" (-1) from ALL students`, true);
+}
+
+function clearAllClassInteractions() {
+    if (isReadOnlyView()) return;
+    const act = getActiveData();
+    if (!act) return;
+    const targetLabel = isHistoryMode ? `Archive Day (${historyDate})` : `Class (${appData.currentClass})`;
+    if (!confirm(`هل أنت متأكد من مسح جميع التفاعلات للفصل بالكامل في ${targetLabel}؟\n\nاضغط OK للمسح أو Cancel للتراجع.`)) return;
+
+    act.scores = {};
+    act.manualScores = {};
+    saveGlobal();
+    renderClass();
+    showToast(`Cleared all interactions for ${appData.currentClass}`, true);
+}
+
+function buildBulkBar() {
+    const bulkBar = document.getElementById('bulkActionBar');
+    if (isReadOnlyView()) {
+        bulkBar.style.display = 'none';
+        return;
+    }
+    bulkBar.style.display = 'flex';
+
+    const cont = document.getElementById('bulkIconsContainer');
+    cont.innerHTML = '';
+    behaviors.forEach(b => {
+        const sharedCount = getClassBulkCount(b.id);
+        const btn = document.createElement('button');
+        btn.className = `bulk-btn ${sharedCount > 0 ? 'active' : ''}`;
+        btn.title = `${b.title} — Left-Click/Tap: ${bulkMode.toUpperCase()} | Right-Click/Long-Press: REMOVE (-1)`;
+        btn.innerHTML = `<i class="${b.icon}" style="color:${b.color};"></i>`;
+
+        if (sharedCount > 0) {
+            const bdg = document.createElement('span');
+            bdg.className = 'bulk-badge';
+            bdg.textContent = sharedCount;
+            bdg.title = "Click badge to remove (-1) from all students";
+            bdg.addEventListener('click', (e) => {
+                e.stopPropagation();
+                applyBulkBehavior(b, 'remove');
             });
-
-            const addBtn = document.createElement('button');
-            addBtn.className = 'add-class-btn';
-            addBtn.innerHTML = '<i class="fa-solid fa-plus"></i> New Class';
-            addBtn.onclick = createNewClass;
-            nav.appendChild(addBtn);
-
-            const importBtn = document.createElement('button');
-            importBtn.className = 'import-class-btn';
-            importBtn.innerHTML = '<i class="fa-solid fa-file-import"></i> Import Class';
-            importBtn.onclick = () => document.getElementById('fileUpload').click();
-            nav.appendChild(importBtn);
+            btn.appendChild(bdg);
         }
 
-        // دالة استيراد الأسماء من Word و Excel و TXT
-        async function handleImport(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const ext = file.name.split('.').pop().toLowerCase();
-            let names = [];
+        attachSmartInteraction(
+            btn,
+            () => applyBulkBehavior(b, bulkMode),
+            () => applyBulkBehavior(b, 'remove')
+        );
 
-            try {
-                if (ext === 'txt' || ext === 'csv') {
-                    const text = await file.text();
-                    names = text.split(/\r?\n/);
-                } else if (ext === 'xlsx' || ext === 'xls') {
-                    const buffer = await file.arrayBuffer();
-                    const workbook = XLSX.read(buffer, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                    names = json.map(row => row[0]); // استخراج العمود الأول
-                } else if (ext === 'docx') {
-                    const buffer = await file.arrayBuffer();
-                    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-                    names = result.value.split(/\r?\n/);
-                } else {
-                    alert("Unsupported file type. Please upload .txt, .csv, .xlsx, or .docx");
-                    event.target.value = '';
-                    return;
-                }
+        cont.appendChild(btn);
+    });
+}
 
-                names = names.map(n => n ? String(n).trim() : '').filter(n => n.length > 0);
+function toggleBulkMode() {
+    if (isReadOnlyView()) return;
+    const b = document.getElementById('bulkModeBtn');
+    bulkMode = (bulkMode === 'add') ? 'remove' : 'add';
+    b.style.background = (bulkMode === 'add') ? '#10b981' : '#ef4444';
+    b.textContent = (bulkMode === 'add') ? 'Tap Mode: ADD (+)' : 'Tap Mode: REMOVE (-)';
+}
 
-                if (names.length > 0) {
-                    const className = prompt(`Found ${names.length} students. Enter a name for this new class (e.g. Class 6B):`);
-                    if (className && className.trim() !== '') {
-                        if (!appData.classes[className]) {
-                            appData.classes[className] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
-                            names.forEach((name, index) => {
-                                appData.classes[className].students.push({ id: Date.now() + index, name: name });
-                            });
-                            switchClass(className);
-                        } else { alert("A class with this name already exists!"); }
-                    }
-                } else {
-                    alert("No names found in the document. Ensure names are in the first column (for Excel) or listed line by line.");
-                }
-            } catch (error) {
-                console.error("Error reading file:", error);
-                alert("An error occurred while reading the file.");
-            }
-            event.target.value = ''; 
-        }
+function modifyStudentBehavior(student, behaviorObj, delta) {
+    if (isReadOnlyView()) {
+        showToast("وضع المشاهدة فقط: لا يمكن تعديل تفاعلات المعلم", true);
+        return;
+    }
+    const act = getActiveData();
+    if (!act) return;
+    if (!act.scores) act.scores = {};
+    if (!act.scores[student.id]) act.scores[student.id] = {};
 
-        function switchClass(className) {
-            appData.currentClass = className;
-            saveData(); closeReports(); renderNavbar(); renderClass();
-        }
-
-        function createNewClass() {
-            const name = prompt("Enter new class name (e.g., Class 6A):");
-            if (name && name.trim() !== "") {
-                if (!appData.classes[name]) {
-                    appData.classes[name] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
-                    switchClass(name);
-                } else { alert("Class already exists!"); }
-            }
-        }
-
-        function deleteCurrentClass() {
-            const currentClassName = appData.currentClass;
-            if (confirm(`Are you absolutely sure you want to delete ${currentClassName} and ALL its students? This cannot be undone.`)) {
-                delete appData.classes[currentClassName];
-                if (Object.keys(appData.classes).length === 0) {
-                    appData.classes["New Class"] = { students: [], scores: {}, quizScores: {}, projectScores: {} };
-                    appData.currentClass = "New Class";
-                } else {
-                    appData.currentClass = Object.keys(appData.classes)[0];
-                }
-                saveData(); renderNavbar(); renderClass();
-            }
-        }
-
-        function addStudent() {
-            const input = document.getElementById('newStudentName');
-            const name = input.value.trim();
-            if (name) {
-                const currentData = appData.classes[appData.currentClass];
-                currentData.students.push({ id: Date.now(), name: name });
-                input.value = '';
-                saveData(); renderClass();
-            }
-        }
-
-        // تعديل اسم الطالب
-        function editStudent(id, oldName) {
-            const newName = prompt("Edit student name:", oldName);
-            if (newName && newName.trim() !== "" && newName !== oldName) {
-                const currentData = appData.classes[appData.currentClass];
-                const student = currentData.students.find(s => s.id === id);
-                if (student) {
-                    student.name = newName.trim();
-                    saveData();
-                    renderClass();
-                }
-            }
-        }
-
-        function deleteStudent(id, name) {
-            if (confirm(`Are you sure you want to delete ${name}?`)) {
-                const currentData = appData.classes[appData.currentClass];
-                currentData.students = currentData.students.filter(s => s.id !== id);
-                delete currentData.scores[id];
-                delete currentData.quizScores[id];
-                delete currentData.projectScores[id];
-                saveData(); renderClass();
-            }
-        }
-
-        function resetStudent(id, name) {
-            if (confirm(`Reset all points, quiz, and project scores for ${name}?`)) {
-                const currentData = appData.classes[appData.currentClass];
-                if (currentData.scores[id]) delete currentData.scores[id];
-                if (currentData.quizScores[id]) delete currentData.quizScores[id];
-                if (currentData.projectScores[id]) delete currentData.projectScores[id];
-                saveData(); renderClass();
-            }
-        }
-
-        function updateQuizScore(studentId, value) {
-            appData.classes[appData.currentClass].quizScores[studentId] = value;
-            saveData();
-        }
-
-        function updateProjectScore(studentId, value) {
-            appData.classes[appData.currentClass].projectScores[studentId] = value;
-            saveData();
-        }
-
-        function calculateStats(studentId) {
-            let positiveCount = 0;
-            let negativeCount = 0;
-            const scores = appData.classes[appData.currentClass].scores;
-            
-            if (scores[studentId]) {
-                behaviors.forEach(b => {
-                    const count = scores[studentId][b.id] || 0;
-                    if (b.type === 'positive') positiveCount += count;
-                    else if (b.type === 'negative') negativeCount += count;
-                });
-            }
-
-            let percentage = 0;
-            let colorClass = "perc-none";
-            let text = "No Data";
-
-            if (positiveCount > 0 || negativeCount > 0) {
-                percentage = 100 - (negativeCount * 10) + (positiveCount * 5);
-                if (percentage > 100) percentage = 100;
-                if (percentage < 70) percentage = 70;
-
-                if (percentage >= 90) colorClass = "perc-high";
-                else if (percentage >= 80) colorClass = "perc-mid";
-                else colorClass = "perc-low";
-                
-                text = `${percentage}%`;
-            }
-            
-            let netScore = positiveCount - negativeCount;
-            return { positiveCount, negativeCount, percentage, colorClass, text, netScore };
-        }
-
-        function renderLeaderboard() {
-            const list = document.getElementById('leaderboardList');
-            list.innerHTML = '';
-            const currentData = appData.classes[appData.currentClass];
-            
-            if (!currentData || currentData.students.length === 0) {
-                list.innerHTML = '<li style="text-align:center; color:#6b7280; margin-top:20px;">No students</li>';
-                return;
-            }
-
-            let ranked = currentData.students.map(s => {
-                const stats = calculateStats(s.id);
-                return { name: s.name, netScore: stats.netScore, pos: stats.positiveCount, neg: stats.negativeCount, perc: stats.percentage };
-            });
-
-            let topStudents = ranked.filter(s => s.perc >= 90 && s.pos > s.neg);
-
-            topStudents.sort((a, b) => {
-                if(b.netScore !== a.netScore) return b.netScore - a.netScore;
-                return b.pos - a.pos;
-            });
-
-            topStudents.slice(0, 10).forEach((s, index) => {
-                const li = document.createElement('li');
-                li.className = 'lb-item';
-                
-                let medal = `${index+1}.`;
-                if(index === 0) medal = '<i class="fa-solid fa-medal"></i>';
-                if(index === 1) medal = '<i class="fa-solid fa-medal"></i>';
-                if(index === 2) medal = '<i class="fa-solid fa-medal"></i>';
-
-                li.innerHTML = `
-                    <span class="lb-rank">${medal}</span>
-                    <span class="lb-name" title="${s.name}">${s.name}</span>
-                    <span class="lb-score">${s.perc}%</span>
-                `;
-                list.appendChild(li);
-            });
-
-            if(list.innerHTML === '') {
-                list.innerHTML = '<li style="text-align:center; color:#6b7280; font-size:14px; margin-top:20px; line-height: 1.5;">No students meet the requirements yet.<br>(Need &ge; 90% and Positives &gt; Negatives)</li>';
-            }
-        }
-
-        function renderClass() {
-            document.getElementById('classTitle').textContent = `${appData.currentClass}`;
-            const app = document.getElementById('app');
-            app.innerHTML = '';
-            const currentData = appData.classes[appData.currentClass];
-
-            if (!currentData || currentData.students.length === 0) {
-                app.innerHTML = `<p style="text-align:center; color:#6b7280; font-size:18px; padding:40px;">No students in this class yet. Add manually or import from file.</p>`;
-                renderLeaderboard();
-                return;
-            }
-
-            currentData.students.forEach(student => {
-                const card = document.createElement('div'); card.className = 'student-card';
-                const headerDiv = document.createElement('div'); headerDiv.className = 'student-header';
-                const infoDiv = document.createElement('div'); infoDiv.className = 'student-info';
-                
-                const nameDiv = document.createElement('div'); nameDiv.className = 'student-name';
-                nameDiv.textContent = student.name; nameDiv.title = "Click to view full report";
-                nameDiv.onclick = () => openStudentReport(student.id, student.name);
-                
-                const quizWrapper = document.createElement('div'); quizWrapper.className = 'input-wrapper';
-                const quizLabel = document.createElement('span'); quizLabel.className = 'score-label'; quizLabel.textContent = 'Quiz / WS';
-                const quizInput = document.createElement('input'); quizInput.type = 'text'; quizInput.className = 'score-input'; quizInput.placeholder = '...';
-                quizInput.value = currentData.quizScores[student.id] || '';
-                quizInput.onchange = (e) => updateQuizScore(student.id, e.target.value);
-                quizWrapper.appendChild(quizLabel); quizWrapper.appendChild(quizInput);
-
-                const projWrapper = document.createElement('div'); projWrapper.className = 'input-wrapper';
-                const projLabel = document.createElement('span'); projLabel.className = 'score-label'; projLabel.textContent = 'Project';
-                const projInput = document.createElement('input'); projInput.type = 'text'; projInput.className = 'score-input'; projInput.placeholder = '...';
-                projInput.value = currentData.projectScores[student.id] || '';
-                projInput.onchange = (e) => updateProjectScore(student.id, e.target.value);
-                projWrapper.appendChild(projLabel); projWrapper.appendChild(projInput);
-
-                const stats = calculateStats(student.id);
-                const percDiv = document.createElement('div'); percDiv.className = `percentage-badge ${stats.colorClass}`;
-                percDiv.textContent = stats.text;
-
-                infoDiv.appendChild(nameDiv);
-                infoDiv.appendChild(quizWrapper);
-                infoDiv.appendChild(projWrapper);
-                infoDiv.appendChild(percDiv);
-
-                const actionsWrapper = document.createElement('div');
-                actionsWrapper.className = 'student-actions-wrapper';
-
-                const editBtn = document.createElement('button'); editBtn.className = 'edit-btn';
-                editBtn.title = "Edit Student Name"; editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
-                editBtn.onclick = () => editStudent(student.id, student.name);
-
-                const resetBtn = document.createElement('button'); resetBtn.className = 'reset-student-btn';
-                resetBtn.title = "Reset Student Scores"; resetBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate-left"></i>';
-                resetBtn.onclick = () => resetStudent(student.id, student.name);
-
-                const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-btn';
-                deleteBtn.title = "Delete Student"; deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                deleteBtn.onclick = () => deleteStudent(student.id, student.name);
-
-                actionsWrapper.appendChild(editBtn);
-                actionsWrapper.appendChild(resetBtn);
-                actionsWrapper.appendChild(deleteBtn);
-
-                headerDiv.appendChild(infoDiv); headerDiv.appendChild(actionsWrapper); card.appendChild(headerDiv);
-
-                const iconsDiv = document.createElement('div'); iconsDiv.className = 'icons-container';
-
-                behaviors.forEach(behavior => {
-                    const count = (currentData.scores[student.id] && currentData.scores[student.id][behavior.id]) || 0;
-                    const btn = document.createElement('button'); btn.className = `icon-btn ${count > 0 ? 'active' : ''}`;
-                    const iconTag = document.createElement('i'); iconTag.className = behavior.icon; iconTag.style.color = behavior.color;
-                    btn.appendChild(iconTag);
-
-                    if (count > 0) {
-                        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = count;
-                        badge.addEventListener('click', (e) => {
-                            e.stopPropagation(); currentData.scores[student.id][behavior.id] = count - 1; saveData(); renderClass();
-                        });
-                        btn.appendChild(badge);
-                    }
-
-                    btn.addEventListener('click', () => {
-                        if (!currentData.scores[student.id]) currentData.scores[student.id] = {};
-                        currentData.scores[student.id][behavior.id] = count + 1; saveData(); renderClass();
-                    });
-
-                    btn.addEventListener('contextmenu', (e) => {
-                        e.preventDefault();
-                        if (count > 0) { currentData.scores[student.id][behavior.id] = count - 1; saveData(); renderClass(); }
-                    });
-
-                    iconsDiv.appendChild(btn);
-                });
-                card.appendChild(iconsDiv); app.appendChild(card);
-            });
-
-            renderLeaderboard();
-        }
-
-        function hideAllViews() {
-            document.getElementById('mainView').style.display = 'none';
-            document.getElementById('studentReportView').style.display = 'none';
-            document.getElementById('classReportView').style.display = 'none';
-        }
-
-        function closeReports() {
-            hideAllViews(); document.getElementById('mainView').style.display = 'block';
-        }
-
-        function openStudentReport(studentId, studentName) {
-            hideAllViews(); document.getElementById('studentReportView').style.display = 'block';
-            
-            document.getElementById('r-studentName').textContent = studentName;
-            document.getElementById('r-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-            const stats = calculateStats(studentId);
-            const quizVal = appData.classes[appData.currentClass].quizScores[studentId] || 'N/A';
-            const projVal = appData.classes[appData.currentClass].projectScores[studentId] || 'N/A';
-
-            document.getElementById('r-pos-score').textContent = stats.positiveCount;
-            document.getElementById('r-neg-score').textContent = stats.negativeCount;
-            document.getElementById('r-quiz-score').textContent = quizVal;
-            document.getElementById('r-project-score').textContent = projVal;
-            document.getElementById('r-perc').textContent = stats.text;
-            document.getElementById('r-perc').className = stats.colorClass;
-
-            let posHtml = '<h4><i class="fa-solid fa-thumbs-up" style="color:#16a34a"></i> Positive Behaviors</h4>';
-            let negHtml = '<h4><i class="fa-solid fa-circle-exclamation" style="color:#dc2626"></i> Needs Improvement</h4>';
-            let hasPos = false; let hasNeg = false;
-            const scores = appData.classes[appData.currentClass].scores;
-
-            behaviors.forEach(b => {
-                const count = scores[studentId]?.[b.id] || 0;
-                if (count > 0) {
-                    const li = `<li><div class="report-item-info"><i class="${b.icon}" style="color:${b.color}; font-size: 20px; width: 25px; text-align: center;"></i><span>${b.title}</span></div><span class="report-count">${count}</span></li>`;
-                    if (b.type === 'positive') { posHtml += li; hasPos = true; } 
-                    else { negHtml += li; hasNeg = true; }
-                }
-            });
-
-            if (!hasPos) posHtml += '<li style="color:#6b7280; font-size: 14px;">No positive records yet.</li>';
-            if (!hasNeg) negHtml += '<li style="color:#6b7280; font-size: 14px;">No negative records yet.</li>';
-
-            document.getElementById('r-positive-list').innerHTML = posHtml;
-            document.getElementById('r-negative-list').innerHTML = negHtml;
-            window.scrollTo(0, 0);
-        }
-
-        function openClassReport() {
-            hideAllViews(); document.getElementById('classReportView').style.display = 'block';
-            
-            document.getElementById('cr-className').textContent = appData.currentClass;
-            document.getElementById('cr-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-            const tbody = document.getElementById('cr-table-body');
-            tbody.innerHTML = '';
-            
-            const currentData = appData.classes[appData.currentClass];
-            
-            if (!currentData.students || currentData.students.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#6b7280;">No students in this class.</td></tr>`;
-                return;
-            }
-
-            currentData.students.forEach(student => {
-                const stats = calculateStats(student.id);
-                const quizVal = currentData.quizScores[student.id] || '-';
-                const projVal = currentData.projectScores[student.id] || '-';
-                
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="font-weight: bold; color: #1f2937;">${student.name}</td>
-                    <td style="color: #8b5cf6; font-weight: bold;">${quizVal}</td>
-                    <td style="color: #f59e0b; font-weight: bold;">${projVal}</td>
-                    <td style="color: #16a34a; font-weight: bold;">${stats.positiveCount}</td>
-                    <td style="color: #dc2626; font-weight: bold;">${stats.negativeCount}</td>
-                    <td><span class="percentage-badge ${stats.colorClass}">${stats.text}</span></td>
-                `;
-                tbody.appendChild(tr);
-            });
-            window.scrollTo(0, 0);
-        }
-
-        renderNavbar();
+    const current = act.scores[student.id][behaviorObj.id] || 0;
+    if (delta > 0) {
+        act.scores[student.id][behaviorObj.id] = current + 1;
+        saveGlobal();
         renderClass();
-    </script>
+        showToast(`${student.name}: +1 ${behaviorObj.title}`, false);
+    } else if (delta < 0) {
+        if (current > 0) {
+            act.scores[student.id][behaviorObj.id] = current - 1;
+            if (act.scores[student.id][behaviorObj.id] <= 0) delete act.scores[student.id][behaviorObj.id];
+            saveGlobal();
+            renderClass();
+            showToast(`${student.name}: Removed -1 ${behaviorObj.title}`, true);
+        } else {
+            showToast(`${student.name} has 0 in ${behaviorObj.title}`, true);
+        }
+    }
+}
+
+function renderClass() {
+    const readOnly = isReadOnlyView();
+    updateHistoryDropdown();
+    buildBulkBar();
+
+    // Toggle Read-Only UI elements
+    const roBanner = document.getElementById('readOnlyBanner');
+    if (readOnly) {
+        roBanner.style.display = 'flex';
+        document.getElementById('roTeacherName').textContent = `${currentTeacher} - ${appData.subject || 'General'}`;
+        document.getElementById('headerClassActions').style.display = 'none';
+        document.getElementById('interactionHint').textContent = '👁️ View-Only Mode (Click student name or Class Report to view/print)';
+        document.getElementById('saveDatePicker').style.display = 'none';
+        document.getElementById('saveDayBtn').style.display = 'none';
+        document.getElementById('newStudentName').style.display = 'none';
+        document.getElementById('addStudentBtn').style.display = 'none';
+    } else {
+        roBanner.style.display = 'none';
+        document.getElementById('headerClassActions').style.display = 'flex';
+        document.getElementById('interactionHint').textContent = '💡 Click/Tap = Add (+1) | Right-Click or Long-Press = Remove (-1)';
+        document.getElementById('saveDatePicker').style.display = 'inline-block';
+        document.getElementById('saveDayBtn').style.display = isHistoryMode ? 'none' : 'inline-flex';
+        document.getElementById('newStudentName').style.display = 'inline-block';
+        document.getElementById('addStudentBtn').style.display = 'inline-flex';
+    }
+
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    const act = getActiveData();
+    if (!act) return;
+
+    document.getElementById('classTitle').textContent = appData.currentClass + (isHistoryMode ? ` (📅 Archive: ${historyDate})` : '');
+    const hb = document.getElementById('historyBanner');
+    if (isHistoryMode) {
+        hb.style.display = 'flex';
+        if (readOnly) {
+            hb.innerHTML = `
+                <div><i class="fa-solid fa-calendar-day"></i> <strong>Archive View (${historyDate}):</strong> استعراض سجل يوم سابق (للقراءة فقط).</div>
+                <button class="ctrl-btn" style="background:#0f172a; padding:6px 12px;" onclick="viewHistory('')"><i class="fa-solid fa-rotate-left"></i> العودة لليوم الحالي</button>
+            `;
+        } else {
+            hb.innerHTML = `
+                <div><i class="fa-solid fa-pen-to-square"></i> <strong>History Edit Mode (${historyDate}):</strong> يمكنك الآن تعديل أي تفاعل أو درجة في هذا اليوم السابق ويتم الحفظ تلقائياً.</div>
+                <div style="display:flex; gap:8px;">
+                    <button class="ctrl-btn" style="background:#dc2626; padding:6px 12px;" onclick="deleteHistoryDay('${historyDate}')"><i class="fa-solid fa-trash"></i> Delete This Day</button>
+                    <button class="ctrl-btn" style="background:#0f172a; padding:6px 12px;" onclick="viewHistory('')"><i class="fa-solid fa-rotate-left"></i> Back to Current Board</button>
+                </div>
+            `;
+        }
+    } else {
+        hb.style.display = 'none';
+    }
+
+    const students = appData.classes[appData.currentClass].students || [];
+    students.forEach(student => {
+        const isStar = (act.scores && act.scores[student.id] && act.scores[student.id]['star'] > 0);
+        const st = calculateStats(student.id);
+        const isNegOnly = st.isNegativeOnly;
+
+        const card = document.createElement('div');
+        card.className = `student-card ${isStar ? 'star-card' : ''} ${isNegOnly ? 'neg-only-card' : ''}`;
+
+        const qz = (act.quizScores && act.quizScores[student.id]) || '';
+        const pr = (act.projectScores && act.projectScores[student.id]) || '';
+
+        const header = document.createElement('div');
+        header.className = 'student-header';
+        header.innerHTML = `
+            <div class="student-info">
+                <div class="student-name ${isStar ? 'is-star' : ''} ${isNegOnly ? 'is-neg-only' : ''}" onclick="openStudentReport(${student.id}, '${student.name.replace(/'/g, "\\'")}')" title="Click to open student report">
+                    ${isNegOnly ? '<i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> ' : ''}${student.name} ${isStar ? '⭐' : ''}
+                </div>
+                <div><small style="display:block;font-size:10px;color:#64748b;">QUIZ</small><input class="score-input" value="${qz}" ${readOnly ? 'disabled' : ''} onchange="updateQ(${student.id}, this.value)"></div>
+                <div><small style="display:block;font-size:10px;color:#64748b;">PROJECT</small><input class="score-input" value="${pr}" ${readOnly ? 'disabled' : ''} onchange="updateP(${student.id}, this.value)"></div>
+                <span class="percentage-badge ${st.colorClass} ${readOnly ? 'readonly-badge' : ''}" onclick="${readOnly ? '' : `manualPerc(${student.id}, '${student.name.replace(/'/g, "\\'")}')`}" title="${readOnly ? 'Behavior Score' : 'Click to set any custom percentage (even below 70%)'}">${st.text}</span>
+                ${readOnly ? '' : `<button class="manual-edit-btn" onclick="manualPerc(${student.id}, '${student.name.replace(/'/g, "\\'")}')" title="Set manual percentage (0 - 100)"><i class="fa-solid fa-sliders"></i> % Edit</button>`}
+            </div>
+            ${readOnly ? '' : `
+            <div style="display:flex; gap:6px;">
+                <button class="ctrl-btn" style="background:#fef08a; color:#854d0e; padding:6px 10px;" title="Reset all student interactions" onclick="resetStu(${student.id})"><i class="fa-solid fa-rotate-left"></i></button>
+                <button class="ctrl-btn" style="background:#fee2e2; color:#dc2626; padding:6px 10px;" title="Delete student" onclick="delStu(${student.id})"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            `}
+        `;
+        card.appendChild(header);
+
+        const iconsDiv = document.createElement('div');
+        iconsDiv.className = 'icons-container';
+        behaviors.forEach(b => {
+            const count = (act.scores && act.scores[student.id] && act.scores[student.id][b.id]) || 0;
+            const btn = document.createElement('button');
+            btn.className = `icon-btn ${count > 0 ? 'active' : ''} ${readOnly ? 'readonly-icon' : ''}`;
+            btn.title = readOnly ? `${b.title}: ${count}` : `${b.title} (Left-Click/Tap: +1 | Right-Click/Hold: -1)`;
+            btn.innerHTML = `<i class="${b.icon}" style="color:${b.color};"></i>`;
+
+            if (count > 0) {
+                const bdg = document.createElement('span');
+                bdg.className = 'badge';
+                bdg.textContent = count;
+                if (!readOnly) {
+                    bdg.title = "Click badge to remove (-1)";
+                    bdg.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        modifyStudentBehavior(student, b, -1);
+                    });
+                }
+                btn.appendChild(bdg);
+            }
+
+            if (!readOnly) {
+                attachSmartInteraction(
+                    btn,
+                    () => modifyStudentBehavior(student, b, +1),
+                    () => modifyStudentBehavior(student, b, -1)
+                );
+            }
+
+            iconsDiv.appendChild(btn);
+        });
+        card.appendChild(iconsDiv);
+        app.appendChild(card);
+    });
+
+    renderLeaderboard();
+}
+
+function updateQ(id, val) { if (isReadOnlyView()) return; const a = getActiveData(); if (!a.quizScores) a.quizScores = {}; a.quizScores[id] = val; saveGlobal(); renderClass(); }
+function updateP(id, val) { if (isReadOnlyView()) return; const a = getActiveData(); if (!a.projectScores) a.projectScores = {}; a.projectScores[id] = val; saveGlobal(); renderClass(); }
+function manualPerc(id, name) {
+    if (isReadOnlyView()) return;
+    const a = getActiveData(); if (!a.manualScores) a.manualScores = {};
+    const currentVal = (a.manualScores[id] !== undefined) ? a.manualScores[id] : '';
+    const raw = prompt(`أدخل النسبة اليدوية للطالب (${name}) من 0 إلى 100 (يمكنك كتابة نسبة أقل من 70 مثل 50 أو 60):\n\nاترك الخانة فارغة واضغط OK للعودة للحساب التلقائي.`, currentVal);
+    if (raw === null) return;
+    const cleaned = raw.trim().replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace('%', '');
+    if (cleaned === '') {
+        delete a.manualScores[id];
+        showToast(`Returned ${name} to Auto %`, false);
+    } else {
+        let n = parseFloat(cleaned);
+        if (!isNaN(n)) {
+            n = Math.max(0, Math.min(100, Math.round(n)));
+            a.manualScores[id] = n;
+            showToast(`Set ${name} manual score to ${n}%`, n < 70);
+        }
+    }
+    saveGlobal(); renderClass();
+}
+function resetStu(id) {
+    if (isReadOnlyView()) return;
+    if (!confirm("هل تريد مسح جميع تفاعلات هذا الطالب؟ (OK للمسح / Cancel للتراجع)")) return;
+    const a = getActiveData();
+    if (a.scores) delete a.scores[id];
+    if (a.quizScores) delete a.quizScores[id];
+    if (a.projectScores) delete a.projectScores[id];
+    if (a.manualScores) delete a.manualScores[id];
+    saveGlobal(); renderClass();
+    showToast("Student interactions reset", true);
+}
+function delStu(id) {
+    if (isReadOnlyView()) return;
+    if (!confirm("Delete student from class?")) return;
+    appData.classes[appData.currentClass].students = appData.classes[appData.currentClass].students.filter(s => s.id !== id);
+    saveGlobal(); renderClass();
+}
+function addStudent() {
+    if (isReadOnlyView()) return;
+    const inp = document.getElementById('newStudentName');
+    if (inp.value.trim()) {
+        appData.classes[appData.currentClass].students.push({ id: Date.now(), name: inp.value.trim() });
+        inp.value = ''; saveGlobal(); renderClass(); buildAutocompleteList();
+    }
+}
+function promptNewCustomClass() {
+    if (isReadOnlyView()) return;
+    const n = prompt("Enter new class name:");
+    if (n && n.trim()) {
+        appData.classes[n.trim()] = { students: [], scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, history: {} };
+        appData.currentClass = n.trim();
+        saveGlobal(); renderNavbar(); renderClass();
+    }
+}
+function deleteCurrentClass() {
+    if (isReadOnlyView()) return;
+    if (confirm(`Delete ${appData.currentClass}?`)) {
+        delete appData.classes[appData.currentClass];
+        appData.currentClass = Object.keys(appData.classes)[0] || "";
+        saveGlobal(); renderNavbar(); renderClass();
+    }
+}
+
+function renderLeaderboard() {
+    const list = document.getElementById('leaderboardList');
+    list.innerHTML = '';
+    const students = appData.classes[appData.currentClass].students || [];
+    let ranked = students.map(s => { const st = calculateStats(s.id); return { id: s.id, name: s.name, st }; })
+                         .filter(x => x.st.hasData && x.st.percentage >= 90 && x.st.positiveCount > x.st.negativeCount);
+    ranked.sort((a, b) => (b.st.percentage !== a.st.percentage) ? b.st.percentage - a.st.percentage : b.st.positiveCount - a.st.positiveCount);
+    ranked.slice(0, 10).forEach((x, i) => {
+        const li = document.createElement('li'); li.className = 'lb-item';
+        li.innerHTML = `<span style="cursor:pointer;" onclick="openStudentReport(${x.id}, '${x.name.replace(/'/g, "\\'")}')">#${i+1} ${x.name}</span><span class="percentage-badge perc-high">${x.st.text}</span>`;
+        list.appendChild(li);
+    });
+}
+
+function saveAndClearDay() {
+    if (isReadOnlyView()) return;
+    if (isHistoryMode) {
+        showToast(`All edits to (${historyDate}) are already auto-saved!`, false);
+        return;
+    }
+    const d = document.getElementById('saveDatePicker').value || new Date().toISOString().split('T')[0];
+    const cls = appData.classes[appData.currentClass];
+    if (!cls.history) cls.history = {};
+
+    const confirmMsg = cls.history[d]
+        ? `يوجد سجل محفوظ مسبقاً ليوم (${d}).\nهل تريد استبداله وحفظ التفاعلات الحالية وتفريغ السبورة ليوم جديد؟\n\n(اضغط OK للتأكيد أو Cancel للتراجع)`
+        : `هل تريد حفظ تفاعلات اليوم بتاريخ (${d}) وتفريغ السبورة لبدء يوم جديد؟\n\n(اضغط OK للحفظ أو Cancel للتراجع والإلغاء)`;
+
+    if (!confirm(confirmMsg)) {
+        showToast("تم إلغاء الحفظ (لم يتم مسح السبورة)", false);
+        return;
+    }
+
+    cls.history[d] = {
+        scores: JSON.parse(JSON.stringify(cls.scores || {})),
+        quizScores: JSON.parse(JSON.stringify(cls.quizScores || {})),
+        projectScores: JSON.parse(JSON.stringify(cls.projectScores || {})),
+        manualScores: JSON.parse(JSON.stringify(cls.manualScores || {}))
+    };
+    cls.scores = {}; cls.quizScores = {}; cls.projectScores = {}; cls.manualScores = {};
+    saveGlobal();
+    renderClass();
+    showToast(`Saved day ${d} & cleared board!`, false);
+}
+
+function deleteHistoryDay(d) {
+    if (isReadOnlyView()) return;
+    if (!confirm(`هل تريد حذف سجل يوم (${d}) نهائياً من الأرشيف؟\n\n(OK للحذف / Cancel للتراجع)`)) return;
+    const cls = appData.classes[appData.currentClass];
+    if (cls && cls.history) delete cls.history[d];
+    isHistoryMode = false;
+    historyDate = null;
+    saveGlobal();
+    renderClass();
+    showToast(`Deleted archive ${d}`, true);
+}
+
+function updateHistoryDropdown() {
+    const sel = document.getElementById('historyDropdown');
+    sel.innerHTML = '<option value="">🟢 Current Active Board (Today)</option>';
+    const cls = appData.classes[appData.currentClass];
+    if (!cls || !cls.history) return;
+    const labelSuffix = isReadOnlyView() ? '(View Only)' : '(Click to View / Edit)';
+    Object.keys(cls.history).sort().reverse().forEach(d => {
+        const o = document.createElement('option');
+        o.value = d;
+        o.textContent = `📅 Saved Day: ${d} ${labelSuffix}`;
+        sel.appendChild(o);
+    });
+    sel.value = isHistoryMode ? historyDate : "";
+}
+function viewHistory(d) {
+    isHistoryMode = !!d;
+    historyDate = d || null;
+    renderClass();
+    if (isHistoryMode) {
+        showToast(isReadOnlyView() ? `Viewing Archive (${d})` : `Opened Archive (${d}) for viewing & editing`, false);
+    }
+}
+
+function getAverages(sId) {
+    const cls = appData.classes[appData.currentClass];
+    const dates = Object.keys(cls.history || {}).sort().reverse();
+    let wS = 0, wC = 0, mS = 0, mC = 0;
+    const cur = calculateStatsFromData(sId, cls);
+    if (cur.hasData) { wS += cur.percentage; wC++; mS += cur.percentage; mC++; }
+    dates.forEach((d, i) => {
+        const st = calculateStatsFromData(sId, cls.history[d]);
+        if (st.hasData) {
+            if (i < 7) { wS += st.percentage; wC++; }
+            if (i < 30) { mS += st.percentage; mC++; }
+        }
+    });
+    return { weekly: wC ? Math.round(wS/wC)+'%' : '-', monthly: mC ? Math.round(mS/mC)+'%' : '-' };
+}
+
+function hideAllViews() {
+    ['mainView','studentReportView','classReportView','leaderboardReportView','globalReportView','globalClassReportView','adminDashboardView'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+}
+function closeReports() { hideAllViews(); document.getElementById('mainView').style.display = 'block'; renderClass(); }
+
+function openStudentReport(sId, sName) {
+    hideAllViews(); document.getElementById('studentReportView').style.display = 'block';
+    activeGlobalStudentName = sName;
+    let realUser = isAdminImpersonating ? adminRealName : currentTeacher;
+    document.getElementById('btnOpenGlobal').style.display = ADMINS.includes(realUser) ? 'inline-block' : 'none';
+    document.getElementById('r-studentName').textContent = sName;
+    document.getElementById('r-meta').textContent = `${appData.currentClass} | ${appData.subject} | ${currentTeacher} ${isHistoryMode ? '| Date: ' + historyDate : ''}`;
+    const st = calculateStats(sId); const act = getActiveData(); const av = getAverages(sId);
+    document.getElementById('r-pos-score').textContent = st.positiveCount;
+    document.getElementById('r-neg-score').textContent = st.negativeCount;
+    document.getElementById('r-quiz-score').textContent = (act.quizScores && act.quizScores[sId]) || '-';
+    document.getElementById('r-project-score').textContent = (act.projectScores && act.projectScores[sId]) || '-';
+    document.getElementById('r-weekly-avg').textContent = av.weekly;
+    document.getElementById('r-monthly-avg').textContent = av.monthly;
+    document.getElementById('r-perc').innerHTML = st.text;
+
+    let pH = '<h4>Positive Behaviors</h4>', nH = '<h4>Needs Improvement</h4>';
+    behaviors.forEach(b => {
+        const c = (act.scores && act.scores[sId] && act.scores[sId][b.id]) || 0;
+        if (c > 0) {
+            const li = `<li style="padding:6px 0; border-bottom:1px dashed #ccc; display:flex; justify-content:space-between;"><span>${b.title}</span><strong>${c}</strong></li>`;
+            if (b.type === 'positive') pH += li; else nH += li;
+        }
+    });
+    document.getElementById('r-positive-list').innerHTML = pH;
+    document.getElementById('r-negative-list').innerHTML = nH;
+}
+
+function openClassReport() {
+    hideAllViews(); document.getElementById('classReportView').style.display = 'block';
+    document.getElementById('cr-className').textContent = `${appData.currentClass} — ${appData.subject} (${currentTeacher}) ${isHistoryMode ? '[' + historyDate + ']' : ''}`;
+    const tb = document.getElementById('cr-table-body'); tb.innerHTML = '';
+    const act = getActiveData();
+    appData.classes[appData.currentClass].students.forEach(s => {
+        const st = calculateStats(s.id); const av = getAverages(s.id);
+        const tr = document.createElement('tr');
+        if (st.isNegativeOnly) tr.className = 'row-neg-only';
+        tr.innerHTML = `<td><strong>${st.isNegativeOnly ? '⚠️ ' : ''}${s.name}</strong></td><td>${(act.quizScores&&act.quizScores[s.id])||'-'}</td><td>${(act.projectScores&&act.projectScores[s.id])||'-'}</td><td style="color:green;font-weight:bold;">+${st.positiveCount}</td><td style="color:red;font-weight:bold;">-${st.negativeCount}</td><td>${av.weekly}</td><td>${av.monthly}</td><td><span class="percentage-badge ${st.colorClass} readonly-badge">${st.text}</span></td>`;
+        tb.appendChild(tr);
+    });
+}
+
+function openLeaderboardReport() {
+    hideAllViews(); document.getElementById('leaderboardReportView').style.display = 'block';
+    document.getElementById('lbr-className').textContent = appData.currentClass;
+    const tb = document.getElementById('lbr-table-body'); tb.innerHTML = '';
+    let ranked = appData.classes[appData.currentClass].students.map(s => ({ name: s.name, st: calculateStats(s.id) }))
+        .filter(x => x.st.hasData && x.st.percentage >= 90 && x.st.positiveCount > x.st.negativeCount);
+    ranked.sort((a, b) => (b.st.percentage !== a.st.percentage) ? b.st.percentage - a.st.percentage : b.st.positiveCount - a.st.positiveCount);
+    ranked.slice(0, 10).forEach((x, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>#${i+1}</td><td><strong>${x.name}</strong></td><td><span class="percentage-badge perc-high readonly-badge">${x.st.text}</span></td><td>+${x.st.positiveCount}</td>`;
+        tb.appendChild(tr);
+    });
+}
+
+function buildAutocompleteList() {
+    const dl = document.getElementById('allStudentsList'); dl.innerHTML = '';
+    let set = new Set();
+    Object.values(SCHOOL_CLASSES).forEach(arr => arr.forEach(n => set.add(n)));
+    Object.values(globalData).forEach(t => Object.values(t.classes||{}).forEach(c => (c.students||[]).forEach(s => set.add(s.name))));
+    Array.from(set).sort().forEach(n => { const o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+}
+
+function openAdminDashboard() {
+    hideAllViews(); document.getElementById('adminDashboardView').style.display = 'block';
+    const cSel = document.getElementById('adminClassSelect'); cSel.innerHTML = '';
+    Object.keys(SCHOOL_CLASSES).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
+
+    const tb = document.getElementById('admin-table-body'); tb.innerHTML = '';
+    Object.keys(TEACHER_PINS).forEach(tName => {
+        const tObj = globalData[tName] || { subject: 'Not Set', classes: {} };
+        let acts = 0;
+        Object.values(tObj.classes||{}).forEach(c => Object.values(c.scores||{}).forEach(s => Object.values(s).forEach(v => acts += v)));
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="font-weight:bold;color:#2563eb;cursor:pointer;" onclick="impersonate('${tName}')"><i class="fa-solid fa-eye"></i> ${tName}</td><td>${tObj.subject}</td><td>${Object.keys(tObj.classes||{}).length || 8} Classes</td><td>${acts} Actions</td><td class="no-print"><button class="ctrl-btn" style="padding:5px 10px;" onclick="impersonate('${tName}')"><i class="fa-solid fa-eye"></i> View Reports</button></td>`;
+        tb.appendChild(tr);
+    });
+}
+
+function impersonate(tName) {
+    if (!adminRealName) adminRealName = currentTeacher;
+    if (tName === adminRealName) {
+        currentTeacher = adminRealName;
+        adminRealName = null;
+        isAdminImpersonating = false;
+    } else {
+        currentTeacher = tName;
+        isAdminImpersonating = true;
+    }
+    if (!globalData[currentTeacher]) {
+        globalData[currentTeacher] = { subject: "General", classes: {}, currentClass: "" };
+        populateAllSchoolClasses(globalData[currentTeacher]);
+    }
+    openMainDashboard();
+}
+
+function fillSubFilter(id) {
+    const s = document.getElementById(id); s.innerHTML = '<option value="ALL">All Subjects</option>';
+    ["Science","Math","English","Arabic","Islamic Studies","Social Studies","Physics","Chemistry","Biology","Computer","Art","PE"].forEach(sub => {
+        const o = document.createElement('option'); o.value = sub; o.textContent = sub; s.appendChild(o);
+    });
+}
+
+function openGlobalReportFromStudent() { returnToAdminFromGlobal = false; fillSubFilter('gr-subjectFilter'); generateGlobalReportHTML('ALL'); }
+function adminSearchGlobalReport() {
+    const n = document.getElementById('adminSearchInput').value.trim();
+    if (!n) return alert("Enter student name");
+    activeGlobalStudentName = n; returnToAdminFromGlobal = true; fillSubFilter('gr-subjectFilter'); generateGlobalReportHTML('ALL');
+}
+function closeGlobalReport() { if (returnToAdminFromGlobal) openAdminDashboard(); else closeReports(); }
+
+function generateGlobalReportHTML(fSub = 'ALL') {
+    hideAllViews(); document.getElementById('globalReportView').style.display = 'block';
+    document.getElementById('gr-studentName').textContent = activeGlobalStudentName;
+    const tb = document.getElementById('gr-table-body'); tb.innerHTML = '';
+    let tP = 0, tN = 0, sP = 0, cnt = 0;
+    Object.keys(globalData).forEach(tName => {
+        const tObj = globalData[tName];
+        if (fSub !== 'ALL' && tObj.subject !== fSub) return;
+        Object.keys(tObj.classes||{}).forEach(cName => {
+            const cls = tObj.classes[cName];
+            const stu = (cls.students||[]).find(s => s.name.toLowerCase() === activeGlobalStudentName.toLowerCase());
+            if (stu) {
+                const st = calculateStatsFromData(stu.id, cls);
+                if (st.hasData) {
+                    tP += st.positiveCount; tN += st.negativeCount; sP += st.percentage; cnt++;
+                    const tr = document.createElement('tr');
+                    if (st.isNegativeOnly) tr.className = 'row-neg-only';
+                    tr.innerHTML = `<td><strong>${tObj.subject}</strong></td><td>${tName}</td><td>${cName}</td><td>${(cls.quizScores&&cls.quizScores[stu.id])||'-'}</td><td>${(cls.projectScores&&cls.projectScores[stu.id])||'-'}</td><td style="color:green;font-weight:bold;">+${st.positiveCount}</td><td style="color:red;font-weight:bold;">-${st.negativeCount}</td><td><span class="percentage-badge ${st.colorClass} readonly-badge">${st.text}</span></td>`;
+                    tb.appendChild(tr);
+                }
+            }
+        });
+    });
+    document.getElementById('gr-pos-score').textContent = `+${tP}`;
+    document.getElementById('gr-neg-score').textContent = `-${tN}`;
+    document.getElementById('gr-perc').textContent = cnt ? Math.round(sP/cnt)+'%' : 'No Data';
+}
+
+function adminSearchGlobalClassReport() {
+    activeGlobalClassName = document.getElementById('adminClassSelect').value;
+    fillSubFilter('gcr-subjectFilter');
+    generateGlobalClassReportHTML('ALL');
+}
+
+function generateGlobalClassReportHTML(fSub = 'ALL') {
+    hideAllViews(); document.getElementById('globalClassReportView').style.display = 'block';
+    document.getElementById('gcr-className').textContent = `${activeGlobalClassName} (${fSub})`;
+    const tb = document.getElementById('gcr-table-body'); tb.innerHTML = '';
+    const roster = SCHOOL_CLASSES[activeGlobalClassName] || [];
+    roster.forEach(sName => {
+        let p = 0, n = 0, sum = 0, c = 0;
+        Object.keys(globalData).forEach(tName => {
+            const tObj = globalData[tName];
+            if (fSub !== 'ALL' && tObj.subject !== fSub) return;
+            const cls = tObj.classes && tObj.classes[activeGlobalClassName];
+            if (cls) {
+                const stu = (cls.students||[]).find(s => s.name.toLowerCase() === sName.toLowerCase());
+                if (stu) {
+                    const st = calculateStatsFromData(stu.id, cls);
+                    if (st.hasData) { p += st.positiveCount; n += st.negativeCount; sum += st.percentage; c++; }
+                }
+            }
+        });
+        const isNegOnlyGlobal = (n > 0 && p === 0);
+        const tr = document.createElement('tr');
+        if (isNegOnlyGlobal) tr.className = 'row-neg-only';
+        tr.innerHTML = `<td style="font-weight:bold;color:#2563eb;cursor:pointer;" onclick="activeGlobalStudentName='${sName.replace(/'/g, "\\'")}';returnToAdminFromGlobal=true;fillSubFilter('gr-subjectFilter');generateGlobalReportHTML('${fSub}');">${isNegOnlyGlobal ? '⚠️ ' : ''}${sName}</td><td>${c}</td><td style="color:green;font-weight:bold;">+${p}</td><td style="color:red;font-weight:bold;">-${n}</td><td><strong>${c ? Math.round(sum/c)+'% (+' + p + ')' : 'No Data'}</strong></td>`;
+        tb.appendChild(tr);
+    });
+}
+
+async function handleImport(event) {
+    if (isReadOnlyView()) return;
+    const file = event.target.files[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    let names = [];
+    try {
+        if (ext === 'txt' || ext === 'csv') {
+            const text = await file.text(); names = text.split(/\r?\n/);
+        } else if (ext === 'xlsx' || ext === 'xls') {
+            const buffer = await file.arrayBuffer(); const workbook = XLSX.read(buffer, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            names = json.map(row => row[0]);
+        } else if (ext === 'docx') {
+            const buffer = await file.arrayBuffer(); const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+            names = result.value.split(/\r?\n/);
+        }
+        names = names.map(n => n ? String(n).trim() : '').filter(n => n.length > 1);
+        if (names.length > 0) {
+            const cName = prompt(`Found ${names.length} students. Enter class name:`, file.name.replace(/\.[^/.]+$/, ""));
+            if (cName) {
+                appData.classes[cName] = {
+                    students: names.map((n, i) => ({ id: Date.now() + i, name: n })),
+                    scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, history: {}
+                };
+                appData.currentClass = cName;
+                saveGlobal(); renderNavbar(); renderClass();
+            }
+        }
+    } catch (err) { alert("Could not read file."); }
+    event.target.value = '';
+}
+</script>
 </body>
 </html>
