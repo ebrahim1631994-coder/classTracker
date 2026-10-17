@@ -26,10 +26,20 @@ const firebaseConfig = {
 
 let db = null;
 try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.database();
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    }
 } catch (err) {
-    console.error("Firebase init error:", err);
+    console.warn("Firebase init warning:", err);
+}
+
+// Helper: Firebase keys cannot contain '.', '#', '$', '[', or ']'
+function toFirebaseKey(tName) {
+    return String(tName).replace(/\./g, '_DOT_');
+}
+function fromFirebaseKey(fbKey) {
+    return String(fbKey).replace(/_DOT_/g, '.');
 }
 
 // ================= CORE DATA & LOGIN ENGINE =================
@@ -152,31 +162,41 @@ try {
     if (saved) globalData = JSON.parse(saved);
 } catch(e) { globalData = {}; }
 
-// Real-Time Cloud Sync Listener (Updates Admin & Teacher screens live)
+// Real-Time Cloud Sync Listener (Sanitizes keys with _DOT_)
 if (db) {
-    db.ref('EDUGATES_FINAL_DB').on('value', (snapshot) => {
-        const cloudVal = snapshot.val();
-        if (cloudVal) {
-            globalData = cloudVal;
-            setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
-            if (currentTeacher && globalData[currentTeacher]) {
-                const prevClass = appData ? appData.currentClass : null;
-                appData = globalData[currentTeacher];
-                if (prevClass && appData.classes && appData.classes[prevClass]) {
-                    appData.currentClass = prevClass;
-                }
-                // Avoid interrupting active typing in inputs
-                const activeEl = document.activeElement;
-                const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
-                if (!isTyping) {
-                    if (currentViewName === 'board') renderClass();
-                    else if (currentViewName === 'home') renderHomePortal();
-                    else if (currentViewName === 'admin') openAdminDashboard();
-                    else refreshCurrentActiveView();
+    try {
+        db.ref('EDUGATES_FINAL_DB').on('value', (snapshot) => {
+            const cloudVal = snapshot.val();
+            if (cloudVal) {
+                let decoded = {};
+                Object.keys(cloudVal).forEach(k => {
+                    decoded[fromFirebaseKey(k)] = cloudVal[k];
+                });
+                globalData = Object.assign({}, globalData, decoded);
+                setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
+
+                if (currentTeacher && globalData[currentTeacher]) {
+                    const prevClass = appData ? appData.currentClass : null;
+                    appData = globalData[currentTeacher];
+                    if (prevClass && appData.classes && appData.classes[prevClass]) {
+                        appData.currentClass = prevClass;
+                    }
+                    const activeEl = document.activeElement;
+                    const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+                    if (!isTyping) {
+                        if (currentViewName === 'board') renderClass();
+                        else if (currentViewName === 'home') renderHomePortal();
+                        else if (currentViewName === 'admin') openAdminDashboard();
+                        else refreshCurrentActiveView();
+                    }
                 }
             }
-        }
-    });
+        }, (err) => {
+            console.warn("Firebase read warning (check Database Rules):", err);
+        });
+    } catch (e) {
+        console.warn("Firebase listener error:", e);
+    }
 }
 
 function saveGlobal() {
@@ -185,8 +205,12 @@ function saveGlobal() {
         globalData[currentTeacher] = appData;
         setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
         if (db) {
-            // Save directly to the teacher's node in Firebase so teachers never overwrite each other
-            db.ref('EDUGATES_FINAL_DB/' + currentTeacher).set(appData);
+            try {
+                const safeKey = toFirebaseKey(currentTeacher);
+                db.ref('EDUGATES_FINAL_DB/' + safeKey).set(JSON.parse(JSON.stringify(appData)));
+            } catch (e) {
+                console.warn("Cloud sync write error:", e);
+            }
         }
     }
 }
@@ -228,6 +252,7 @@ function clearPinBox() {
     document.getElementById('loginErrorMsg').textContent = '';
 }
 
+// INSTANT NON-BLOCKING LOGIN (Opens portal immediately, syncs cloud in background)
 function executeDirectLogin() {
     const tName = document.getElementById('loginTeacherSelect').value;
     let rawPin = document.getElementById('loginPinInput').value.trim();
@@ -247,30 +272,41 @@ function executeDirectLogin() {
         const isAdminAcc = ADMINS.includes(tName);
         const defaultSub = isAdminAcc ? "Administration" : (DEFAULT_TEACHER_SUBJECTS[tName] || "Science");
 
-        function finalizeLoginSetup(tData) {
-            if (!tData) {
-                tData = { subject: defaultSub, classes: {}, currentClass: "" };
+        let tData = globalData[currentTeacher];
+        if (!tData) {
+            tData = { subject: defaultSub, classes: {}, currentClass: "" };
+            populateAllSchoolClasses(tData);
+        } else {
+            if (isAdminAcc) tData.subject = "Administration";
+            else if (!tData.subject || !ALL_SUBJECTS.includes(tData.subject)) tData.subject = defaultSub;
+            if (!tData.classes || Object.keys(tData.classes).length === 0) {
                 populateAllSchoolClasses(tData);
-            } else {
-                if (isAdminAcc) tData.subject = "Administration";
-                else if (!tData.subject || !ALL_SUBJECTS.includes(tData.subject)) tData.subject = defaultSub;
-                if (!tData.classes || Object.keys(tData.classes).length === 0) {
-                    populateAllSchoolClasses(tData);
-                }
             }
-            globalData[currentTeacher] = tData;
-            appData = tData;
-            activeAnalyticsPeriod = isAdminAcc ? 'cumulative' : 'today';
-            saveGlobal();
-            launchPortalSession();
         }
 
+        globalData[currentTeacher] = tData;
+        appData = tData;
+        activeAnalyticsPeriod = isAdminAcc ? 'cumulative' : 'today';
+
+        // Launch portal immediately without waiting for network
+        launchPortalSession();
+        saveGlobal();
+
+        // Pull latest cloud data in background if available
         if (db) {
-            db.ref('EDUGATES_FINAL_DB/' + currentTeacher).once('value')
-                .then((snapshot) => finalizeLoginSetup(snapshot.val() || globalData[currentTeacher]))
-                .catch(() => finalizeLoginSetup(globalData[currentTeacher]));
-        } else {
-            finalizeLoginSetup(globalData[currentTeacher]);
+            try {
+                const safeKey = toFirebaseKey(currentTeacher);
+                db.ref('EDUGATES_FINAL_DB/' + safeKey).once('value').then((snapshot) => {
+                    const cloudTeacherData = snapshot.val();
+                    if (cloudTeacherData && cloudTeacherData.classes) {
+                        globalData[currentTeacher] = cloudTeacherData;
+                        appData = cloudTeacherData;
+                        setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
+                        if (currentViewName === 'home') renderHomePortal();
+                        else if (currentViewName === 'board') renderClass();
+                    }
+                }).catch(() => {});
+            } catch (e) {}
         }
     } else {
         errBox.textContent = "Wrong PIN! Check your 5-digit code.";
