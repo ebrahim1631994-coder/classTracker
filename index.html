@@ -3,18 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EDUGATES Behavior Tracker</title>
+<title>EDUGATES Behavior & Academic Portal</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
 
+<!-- Firebase App & Realtime Database SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
 <script>
+// ================= FIREBASE CLOUD CONFIGURATION =================
+const firebaseConfig = {
+    apiKey: "AIzaSyAbgW9fsDB7lnuLbQFELIyebo0wMd_FfSU",
+    authDomain: "behavior-tracker-517d4.firebaseapp.com",
+    databaseURL: "https://behavior-tracker-517d4-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "behavior-tracker-517d4",
+    storageBucket: "behavior-tracker-517d4.firebasestorage.app",
+    messagingSenderId: "922149828691",
+    appId: "1:922149828691:web:4017b9e6dffecd99dbeea6"
+};
+
+let db = null;
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+} catch (err) {
+    console.error("Firebase init error:", err);
+}
+
 // ================= CORE DATA & LOGIN ENGINE =================
-const ADMINS = ["Mr. Ibrahim Abdullatif", "Mr. Abdallah"];
+const ADMINS = ["Mr. Abdallah", "Mr. Abed Saleem"];
 
 const TEACHER_PINS = {
-    "Mr. Ibrahim Abdullatif": "75432",
     "Mr. Abdallah": "99999",
+    "Mr. Abed Saleem": "66778",
+    "Mr. Ibrahim Abdullatif": "75432",
     "Mr. Walid Abdulnaser": "10101",
     "Mr. Ahmed Mohamed": "20202",
     "Mr. Ahmed Mousa": "30303",
@@ -29,7 +53,6 @@ const TEACHER_PINS = {
     "Mr. Osama Mostafa": "33445",
     "Mr. Salah Mahmoud": "44556",
     "Mr. Mohamed Ahmed": "55667",
-    "Mr. Abed Saleem": "66778",
     "Mr. Mohamed Abrar": "77889",
     "Mr. Magdy Abdulati": "88990",
     "Mr. Ali Rashid": "12121",
@@ -37,6 +60,37 @@ const TEACHER_PINS = {
     "Mr. Mostafa Abdulaziz": "34343",
     "Mr. Mazen Fathalrahman": "45454"
 };
+
+const DEFAULT_TEACHER_SUBJECTS = {
+    "Mr. Abdallah": "Administration",
+    "Mr. Abed Saleem": "Administration",
+    "Mr. Ibrahim Abdullatif": "Science",
+    "Mr. Walid Abdulnaser": "English",
+    "Mr. Ahmed Mohamed": "Math",
+    "Mr. Ahmed Mousa": "French",
+    "Mr. Yousef Muaidh": "Islamic Studies",
+    "Mr. Mohamed Hassan": "Science",
+    "Mr. Mohamed Abdulaziz": "Social Studies",
+    "Mr. Mohamed Abdullah S": "Arabic",
+    "Mr. Mohamed Abdullah A": "Islamic Studies",
+    "Mr. Mahmoud Mostafa": "Math",
+    "Mr. Fahd Ali": "PE",
+    "Mr. Walid Abdulhadi": "English",
+    "Mr. Osama Mostafa": "Computer",
+    "Mr. Salah Mahmoud": "Science",
+    "Mr. Mohamed Ahmed": "Math",
+    "Mr. Mohamed Abrar": "Computer",
+    "Mr. Magdy Abdulati": "Social Studies",
+    "Mr. Ali Rashid": "Arabic",
+    "Mr. Ali Abutaleb": "Art",
+    "Mr. Mostafa Abdulaziz": "English",
+    "Mr. Mazen Fathalrahman": "Science"
+};
+
+const ALL_SUBJECTS = [
+    "Science", "Math", "English", "French", "Arabic", "Islamic Studies",
+    "Social Studies", "Physics", "Chemistry", "Biology", "Computer", "Art", "PE"
+];
 
 const SCHOOL_CLASSES = {
     "GRADE 5C": ["Abdulmajid Mohamed Ali","Adam Mohamed Abosamrah","ADIL MOHAMMED A NASEEF","ASER TAMER AHMED ABDELBAKY","Azeez Mohd Abuzanouneh","Ebrahim Salah Salih","Faris Mohammed Mansour","Ghaith AbdelRahman Abukoush","JEHAD ZEEB MUSLMANI","Mazen Manhal AlAsmar","MOHAMMED TURKI M ALFASSI","Mu’ath Abubakar Galant","Omar Anas Mowakkea","Sanad Yarob Ali Fareed Khlief","Thonayan Mohamed Almotairy","Turki Khaled Bayahya","Yahya Moustafa Touni","YAZID AHMED SALAH SERAGELDIN"],
@@ -81,16 +135,88 @@ let isHistoryMode = false;
 let historyDate = null;
 let activeGlobalStudentName = "";
 let activeGlobalClassName = "";
+let activeReportStudentId = null;
 let returnToAdminFromGlobal = false;
 let bulkMode = 'add';
+let currentViewName = 'home';
 
+// UNIVERSAL PERIOD FILTER STATE
+let activeAnalyticsPeriod = 'today';
+let selectedSpecificDate = '';
+let selectedSchoolWeek = '';
+let selectedMonthlyKey = '';
+
+// Load Local Cache First for Instant Startup
 try {
     let saved = getStore('EDUGATES_FINAL_DB');
     if (saved) globalData = JSON.parse(saved);
 } catch(e) { globalData = {}; }
 
+// Real-Time Cloud Sync Listener (Updates Admin & Teacher screens live)
+if (db) {
+    db.ref('EDUGATES_FINAL_DB').on('value', (snapshot) => {
+        const cloudVal = snapshot.val();
+        if (cloudVal) {
+            globalData = cloudVal;
+            setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
+            if (currentTeacher && globalData[currentTeacher]) {
+                const prevClass = appData ? appData.currentClass : null;
+                appData = globalData[currentTeacher];
+                if (prevClass && appData.classes && appData.classes[prevClass]) {
+                    appData.currentClass = prevClass;
+                }
+                // Avoid interrupting active typing in inputs
+                const activeEl = document.activeElement;
+                const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+                if (!isTyping) {
+                    if (currentViewName === 'board') renderClass();
+                    else if (currentViewName === 'home') renderHomePortal();
+                    else if (currentViewName === 'admin') openAdminDashboard();
+                    else refreshCurrentActiveView();
+                }
+            }
+        }
+    });
+}
+
+function saveGlobal() {
+    if (isReadOnlyView()) return;
+    if (currentTeacher && appData) {
+        globalData[currentTeacher] = appData;
+        setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
+        if (db) {
+            // Save directly to the teacher's node in Firebase so teachers never overwrite each other
+            db.ref('EDUGATES_FINAL_DB/' + currentTeacher).set(appData);
+        }
+    }
+}
+
 function isReadOnlyView() {
     return isAdminImpersonating && currentTeacher !== adminRealName;
+}
+
+function isPureAdminAccount() {
+    return ADMINS.includes(currentTeacher) && !isAdminImpersonating;
+}
+
+function getTeacherRoleTitle(tName) {
+    if (tName === "Mr. Abdallah") return "School Principal";
+    if (tName === "Mr. Abed Saleem") return "Academic Coordinator";
+    return "Subject Teacher";
+}
+
+function getSchoolWeekRange(dateInput) {
+    const d = (typeof dateInput === 'string' && dateInput.length >= 10)
+        ? new Date(dateInput + 'T12:00:00')
+        : new Date();
+    const day = d.getDay();
+    const diffToSun = day === 6 ? 1 : (day === 5 ? -5 : -day);
+    const sun = new Date(d);
+    sun.setDate(d.getDate() + diffToSun);
+    const thu = new Date(sun);
+    thu.setDate(sun.getDate() + 4);
+    const fmt = (dt) => dt.toISOString().split('T')[0];
+    return { sunStr: fmt(sun), thuStr: fmt(thu), label: `Sun ${fmt(sun)} – Thu ${fmt(thu)}` };
 }
 
 function typeNum(n) {
@@ -104,7 +230,6 @@ function clearPinBox() {
 
 function executeDirectLogin() {
     const tName = document.getElementById('loginTeacherSelect').value;
-    const tSub = document.getElementById('loginSubjectSelect').value;
     let rawPin = document.getElementById('loginPinInput').value.trim();
     const errBox = document.getElementById('loginErrorMsg');
 
@@ -119,17 +244,34 @@ function executeDirectLogin() {
         isAdminImpersonating = false;
         setStore('EDUGATES_FINAL_USER', currentTeacher);
 
-        if (!globalData[currentTeacher]) {
-            globalData[currentTeacher] = { subject: tSub, classes: {}, currentClass: "" };
-            populateAllSchoolClasses(globalData[currentTeacher]);
-        } else {
-            globalData[currentTeacher].subject = tSub;
-            if (!globalData[currentTeacher].classes || Object.keys(globalData[currentTeacher].classes).length === 0) {
-                populateAllSchoolClasses(globalData[currentTeacher]);
+        const isAdminAcc = ADMINS.includes(tName);
+        const defaultSub = isAdminAcc ? "Administration" : (DEFAULT_TEACHER_SUBJECTS[tName] || "Science");
+
+        function finalizeLoginSetup(tData) {
+            if (!tData) {
+                tData = { subject: defaultSub, classes: {}, currentClass: "" };
+                populateAllSchoolClasses(tData);
+            } else {
+                if (isAdminAcc) tData.subject = "Administration";
+                else if (!tData.subject || !ALL_SUBJECTS.includes(tData.subject)) tData.subject = defaultSub;
+                if (!tData.classes || Object.keys(tData.classes).length === 0) {
+                    populateAllSchoolClasses(tData);
+                }
             }
+            globalData[currentTeacher] = tData;
+            appData = tData;
+            activeAnalyticsPeriod = isAdminAcc ? 'cumulative' : 'today';
+            saveGlobal();
+            launchPortalSession();
         }
-        saveGlobal();
-        openMainDashboard();
+
+        if (db) {
+            db.ref('EDUGATES_FINAL_DB/' + currentTeacher).once('value')
+                .then((snapshot) => finalizeLoginSetup(snapshot.val() || globalData[currentTeacher]))
+                .catch(() => finalizeLoginSetup(globalData[currentTeacher]));
+        } else {
+            finalizeLoginSetup(globalData[currentTeacher]);
+        }
     } else {
         errBox.textContent = "Wrong PIN! Check your 5-digit code.";
     }
@@ -141,56 +283,112 @@ function populateAllSchoolClasses(tObj) {
         if (!tObj.classes[cName]) {
             tObj.classes[cName] = {
                 students: SCHOOL_CLASSES[cName].map((sName, sIdx) => ({ id: base + (cIdx * 100) + sIdx, name: sName })),
-                scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, bulkCounts: {}, history: {}
+                scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, comments: {}, bulkCounts: {}, history: {}
             };
         }
     });
     tObj.currentClass = "GRADE 5C";
 }
 
-function saveGlobal() {
-    if (isReadOnlyView()) return; // Prevent saving any accidental mutations in Admin Read-Only mode
-    if (currentTeacher && appData) {
-        globalData[currentTeacher] = appData;
-        setStore('EDUGATES_FINAL_DB', JSON.stringify(globalData));
-    }
+function triggerCleanPrint() {
+    const oldTitle = document.title;
+    document.title = "\u200B";
+    window.print();
+    setTimeout(() => { document.title = oldTitle; }, 500);
 }
 </script>
 
 <style>
-    * { box-sizing: border-box; -webkit-touch-callout: none; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #1e293b; user-select: none; }
+    * { box-sizing: border-box; -webkit-touch-callout: none; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f1f5f9; margin: 0; padding: 0; color: #1e293b; user-select: none; }
     
-    /* LOGIN VIEW */
-    #loginView { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0f172a; padding: 15px; }
-    .login-container { background: white; width: 100%; max-width: 460px; padding: 30px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); text-align: center; }
-    .login-container h2 { margin: 0 0 8px 0; color: #0f172a; font-size: 24px; }
-    .field-label { display: block; text-align: left; font-weight: bold; font-size: 13px; color: #334155; margin: 12px 0 6px 0; }
-    .login-select, .login-input { width: 100%; padding: 13px; font-size: 16px; font-weight: bold; border: 2px solid #cbd5e1; border-radius: 10px; outline: none; background: #f8fafc; color: #0f172a; }
+    .eis-logo-wrapper { display: inline-flex; align-items: center; justify-content: center; }
+    .accreditation-logos-left { display: flex; align-items: center; gap: 22px; }
+
+    #loginView { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle at top right, #1e3a8a, #0f172a 70%); padding: 15px; }
+    .login-container { background: white; width: 100%; max-width: 450px; padding: 30px 32px; border-radius: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.45); text-align: center; }
+    .login-logo-box { margin-bottom: 12px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: center; align-items: center; }
+    .login-container h2 { margin: 4px 0 4px 0; color: #1a365d; font-size: 22px; font-weight: 800; }
+    .field-label { display: block; text-align: left; font-weight: 700; font-size: 13px; color: #334155; margin: 14px 0 6px 0; }
+    .login-select, .login-input { width: 100%; padding: 13px; font-size: 15px; font-weight: bold; border: 2px solid #cbd5e1; border-radius: 10px; outline: none; background: #f8fafc; color: #0f172a; transition: 0.2s; }
     .login-select:focus, .login-input:focus { border-color: #2563eb; background: white; }
     .login-input { text-align: center; letter-spacing: 6px; font-size: 22px; }
     .mini-pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
-    .mp-btn { padding: 10px 0; font-size: 16px; font-weight: bold; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; color: #0f172a; }
-    .mp-btn:active { background: #cbd5e1; }
-    .login-submit-btn { width: 100%; padding: 15px; margin-top: 16px; background: #2563eb; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; }
-    .login-submit-btn:hover { background: #1d4ed8; }
+    .mp-btn { padding: 11px 0; font-size: 16px; font-weight: bold; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; color: #0f172a; transition: 0.1s; }
+    .mp-btn:active { background: #cbd5e1; transform: scale(0.95); }
+    .login-submit-btn { width: 100%; padding: 15px; margin-top: 16px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-size: 17px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 6px 15px rgba(37,99,235,0.3); }
+    .login-submit-btn:hover { opacity: 0.95; }
 
-    /* NAVBAR & DASHBOARD */
-    .navbar { background: #0f172a; padding: 10px 18px; display: flex; gap: 8px; overflow-x: auto; align-items: center; }
-    .class-tab { background: #334155; color: white; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
-    .class-tab.active { background: #2563eb; box-shadow: 0 0 0 2px #93c5fd; }
-    .nav-btn { border: none; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; color: white; }
+    .navbar { background: #0f172a; padding: 10px 20px; display: flex; gap: 8px; overflow-x: auto; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.12); position: sticky; top: 0; z-index: 100; }
+    .home-nav-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 9px 16px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 14px; white-space: nowrap; display: flex; align-items: center; gap: 7px; box-shadow: 0 2px 8px rgba(37,99,235,0.4); }
+    .home-nav-btn.active-home { box-shadow: 0 0 0 2px #93c5fd; }
+    .nav-divider { width: 1px; height: 24px; background: #334155; margin: 0 4px; flex-shrink: 0; }
+    .class-tab { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 14px; border-radius: 7px; cursor: pointer; font-weight: 700; font-size: 13px; white-space: nowrap; transition: 0.15s; }
+    .class-tab:hover { background: #334155; color: white; }
+    .class-tab.active { background: #059669; color: white; border-color: #34d399; }
+    .nav-btn { border: none; padding: 9px 14px; border-radius: 7px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; color: white; display: flex; align-items: center; gap: 6px; }
+
+    #homePortalView { max-width: 1320px; margin: 0 auto; padding: 24px 20px 50px 20px; }
+    .hero-banner { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%); color: white; border-radius: 20px; padding: 24px 30px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; box-shadow: 0 12px 30px rgba(30, 58, 138, 0.25); margin-bottom: 24px; position: relative; overflow: hidden; }
+    .hero-left { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; z-index: 2; }
+    .hero-avatar { width: 68px; height: 68px; border-radius: 18px; background: rgba(255,255,255,0.15); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; font-size: 30px; color: #fde047; border: 2px solid rgba(255,255,255,0.25); }
+    .hero-title h1 { margin: 0 0 6px 0; font-size: 25px; font-weight: 800; letter-spacing: 0.3px; }
+    .hero-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #e2e8f0; }
+    .hero-pill { background: rgba(255,255,255,0.14); padding: 5px 12px; border-radius: 20px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.2); }
+    .hero-sub-select { background: #fde047; color: #0f172a; border: none; padding: 5px 12px; border-radius: 20px; font-weight: 800; font-size: 13px; cursor: pointer; outline: none; }
+    .hero-right { z-index: 2; background: white; padding: 12px 20px; border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.22); display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .hero-date { font-size: 12px; color: #475569; font-weight: 800; border-top: 1px solid #e2e8f0; padding-top: 5px; width: 100%; text-align: center; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: white; padding: 20px 22px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; align-items: center; gap: 16px; }
+    .kpi-icon { width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+    .kpi-info h4 { margin: 0; font-size: 26px; font-weight: 800; color: #0f172a; }
+    .kpi-info p { margin: 3px 0 0 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .admin-analytics-hub { background: white; border-radius: 20px; border: 2px solid #cbd5e1; padding: 24px; margin-bottom: 28px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06); }
+    .analytics-top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid #e2e8f0; margin-bottom: 22px; }
+    .universal-period-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px 16px; margin: 14px 0 18px 0; display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .period-btn-group { display: flex; gap: 5px; flex-wrap: wrap; background: #e2e8f0; padding: 5px; border-radius: 12px; }
+    .period-btn { border: none; background: transparent; padding: 8px 14px; border-radius: 8px; font-weight: 800; font-size: 13px; color: #334155; cursor: pointer; transition: 0.15s; }
+    .period-btn.active { background: #2563eb; color: white; box-shadow: 0 2px 6px rgba(37,99,235,0.35); }
+    .analytics-visuals-grid { display: grid; grid-template-columns: 320px 1fr; gap: 22px; align-items: stretch; }
+    .gauge-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .trend-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+    .pie-breakdown-grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: center; margin: 20px 0; }
+    .ratio-bar-bg { width: 100%; height: 10px; background: #fee2e2; border-radius: 10px; overflow: hidden; display: flex; }
+    .ratio-bar-fill { height: 100%; background: #16a34a; }
+
+    .portal-sec-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0; display: flex; align-items: center; gap: 8px; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; margin-bottom: 30px; }
+    .feat-card { background: white; border-radius: 16px; padding: 22px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.04); display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s ease; position: relative; overflow: hidden; }
+    .feat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(37, 99, 235, 0.12); border-color: #93c5fd; }
+    .feat-top { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 16px; }
+    .feat-icon-box { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; color: white; }
+    .feat-text h3 { margin: 0 0 5px 0; font-size: 17px; font-weight: 800; color: #0f172a; }
+    .feat-text p { margin: 0; font-size: 13px; color: #64748b; line-height: 1.45; }
+    .feat-controls { display: flex; gap: 8px; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; flex-wrap: wrap; }
+    .feat-select { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 700; font-size: 13px; color: #1e293b; background: white; outline: none; cursor: pointer; }
+    .feat-btn { padding: 10px 16px; border-radius: 8px; border: none; font-weight: 800; font-size: 13px; color: white; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; transition: 0.15s; }
+    .feat-btn:hover { opacity: 0.92; }
+
+    .class-matrix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .cls-matrix-card { background: white; border: 2px solid #e2e8f0; border-radius: 14px; padding: 16px; cursor: pointer; transition: 0.18s; display: flex; flex-direction: column; gap: 10px; }
+    .cls-matrix-card:hover { border-color: #2563eb; background: #eff6ff; transform: translateY(-3px); box-shadow: 0 8px 18px rgba(37,99,235,0.12); }
+    .cls-matrix-top { display: flex; justify-content: space-between; align-items: center; }
+    .cls-matrix-name { font-size: 17px; font-weight: 900; color: #1e293b; }
+    .cls-matrix-badge { background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 12px; }
+    .cls-matrix-stats { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 8px; }
 
     .container { max-width: 1320px; margin: auto; padding: 18px; }
-    .header-box { background: white; padding: 14px 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-    .teacher-badge { background: #e0e7ff; color: #3730a3; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+    .header-box { background: white; padding: 14px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .teacher-badge { background: #e0e7ff; color: #3730a3; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+    .board-sub-select { background: white; color: #1e293b; border: 1px solid #c7d2fe; padding: 4px 10px; border-radius: 14px; font-weight: 800; font-size: 13px; cursor: pointer; outline: none; }
     
-    .controls-section { background: white; padding: 14px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; }
-    .ctrl-btn { padding: 10px 14px; font-size: 14px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
+    .controls-section { background: white; padding: 14px; border-radius: 12px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; }
+    .ctrl-btn { padding: 10px 14px; font-size: 13px; background: #2563eb; color: white; border: none; border-radius: 7px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
     .ctrl-btn:hover { opacity: 0.92; }
     
-    /* BULK BAR WITH ACTIVE BADGES & CLEAR BUTTON */
-    .bulk-bar { background: #eff6ff; border: 2px solid #bfdbfe; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; overflow-x: auto; }
+    .bulk-bar { background: #eff6ff; border: 2px solid #bfdbfe; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; overflow-x: auto; }
     .bulk-btn { position: relative; width: 44px; height: 44px; border: 1px solid #93c5fd; border-radius: 8px; background: white; cursor: pointer; font-size: 19px; flex-shrink: 0; transition: transform 0.1s; touch-action: manipulation; display: flex; align-items: center; justify-content: center; }
     .bulk-btn:active { transform: scale(0.92); }
     .bulk-btn.active { background: #dbeafe; border: 2px solid #2563eb; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
@@ -198,25 +396,21 @@ function saveGlobal() {
     .clear-class-btn { background: #dc2626; color: white; border: none; padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; margin-left: auto; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 5px rgba(220,38,38,0.3); }
     .clear-class-btn:hover { background: #b91c1c; }
 
-    /* BANNERS */
     .history-edit-banner { display: none; background: #fef08a; color: #854d0e; border: 2px solid #eab308; padding: 12px 18px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
     .readonly-banner { display: none; background: #dbeafe; color: #1e40af; border: 2px solid #3b82f6; padding: 12px 18px; border-radius: 10px; margin-bottom: 15px; font-weight: bold; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 
     .layout-wrapper { display: flex; gap: 20px; align-items: flex-start; }
     .main-content { flex: 1; min-width: 0; }
-    .leaderboard-sidebar { width: 290px; background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; position: sticky; top: 15px; flex-shrink: 0; }
+    .leaderboard-sidebar { width: 310px; background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; position: sticky; top: 70px; flex-shrink: 0; }
     .lb-list { list-style: none; padding: 0; margin: 0 0 12px 0; }
-    .lb-item { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px dashed #e2e8f0; font-size: 13px; font-weight: bold; }
+    .lb-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px dashed #e2e8f0; font-size: 13px; font-weight: bold; gap: 6px; }
 
-    /* STUDENT CARD & NEGATIVE RED ALERT STYLING */
-    .student-card { background: white; padding: 14px 18px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #e2e8f0; transition: 0.2s; }
+    .student-card { background: white; padding: 14px 18px; margin-bottom: 12px; border-radius: 12px; border: 1px solid #e2e8f0; transition: 0.2s; }
     .student-card.star-card { border: 2px solid #eab308; background: #fefce8; }
     .student-card.neg-only-card { border: 2px solid #ef4444 !important; background: #fef2f2 !important; box-shadow: 0 3px 10px rgba(239, 68, 68, 0.15); }
-    
     .student-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; gap: 10px; }
     .student-card.neg-only-card .student-header { border-bottom-color: #fecaca; }
     .student-info { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-    
     .student-name { font-weight: 800; font-size: 17px; color: #1d4ed8; cursor: pointer; min-width: 170px; }
     .student-name.is-star { color: #b45309; }
     .student-name.is-neg-only { color: #dc2626 !important; text-decoration: underline; text-decoration-color: #ef4444; }
@@ -224,7 +418,7 @@ function saveGlobal() {
     .score-input { width: 60px; padding: 5px; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; background: white; }
     .score-input:disabled { background: #f1f5f9; color: #475569; cursor: not-allowed; }
 
-    .percentage-badge { font-size: 13px; font-weight: 800; padding: 6px 12px; border-radius: 20px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; border: 2px solid transparent; transition: 0.15s; }
+    .percentage-badge { font-size: 12.5px; font-weight: 800; padding: 5px 10px; border-radius: 20px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border: 2px solid transparent; transition: 0.15s; white-space: nowrap; }
     .percentage-badge:hover { transform: scale(1.05); border-color: #475569; }
     .percentage-badge.readonly-badge { cursor: default; }
     .percentage-badge.readonly-badge:hover { transform: none; border-color: transparent; }
@@ -234,6 +428,7 @@ function saveGlobal() {
     .perc-critical { background: #dc2626 !important; color: #ffffff !important; box-shadow: 0 2px 6px rgba(220,38,38,0.4); }
     .perc-none { background: #f1f5f9; color: #64748b; }
     .perc-manual { border: 2px dashed #1e293b !important; }
+    .net-score-pill { background: #dbeafe; color: #1e40af; font-size: 11.5px; font-weight: 900; padding: 3px 8px; border-radius: 12px; white-space: nowrap; }
 
     .manual-edit-btn { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 5px 9px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
     .manual-edit-btn:hover { background: #bae6fd; }
@@ -246,13 +441,16 @@ function saveGlobal() {
     .icon-btn.readonly-icon:active { transform: none; }
     .badge { position: absolute; top: -7px; right: -7px; background: #ef4444; color: white; font-size: 12px; font-weight: bold; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
-    /* TOAST FEEDBACK NOTIFICATION */
+    .report-comment-section { margin-top: 22px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; border-radius: 10px; padding: 15px 18px; }
+    .report-comment-section h4 { margin: 0 0 8px 0; color: #0f172a; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .report-comment-textarea { width: 100%; min-height: 75px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; color: #1e293b; resize: vertical; outline: none; background: white; }
+    .report-comment-textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    .report-comment-print-box { display: none; white-space: pre-wrap; font-size: 14px; font-weight: 600; color: #1e293b; line-height: 1.5; min-height: 40px; }
+
     #actionToast { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); padding: 10px 22px; border-radius: 30px; color: white; font-weight: bold; font-size: 14px; box-shadow: 0 5px 15px rgba(0,0,0,0.25); z-index: 9999; display: none; pointer-events: none; }
 
-    /* REPORTS */
-    .report-view, #adminDashboardView { display: none; background: white; padding: 30px; border-radius: 12px; max-width: 1100px; margin: 20px auto; }
-    .school-print-banner { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #1e293b; padding-bottom: 12px; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
-    .school-print-banner img { max-height: 80px; }
+    .report-view, #adminDashboardView { display: none; background: white; padding: 30px; border-radius: 14px; max-width: 1120px; margin: 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+    .school-print-banner { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a365d; padding-bottom: 16px; margin-bottom: 24px; gap: 20px; flex-wrap: nowrap; }
     .report-stats { display: flex; justify-content: space-around; background: #f8fafc; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; flex-wrap: wrap; gap: 10px; border: 1px solid #e2e8f0; }
     .class-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
     .class-table th, .class-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
@@ -261,13 +459,21 @@ function saveGlobal() {
     .row-neg-only { background-color: #fef2f2 !important; }
     .row-neg-only td:first-child { color: #dc2626 !important; font-weight: 900 !important; }
 
+    @page { size: auto; margin: 0mm; }
+
     @media print {
-        body { background: white; }
-        .no-print, #actionToast { display: none !important; }
-        .report-view { display: block; padding: 0; margin: 0; }
+        html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+        .no-print, #actionToast, #homePortalView, .report-comment-textarea, .universal-period-bar { display: none !important; }
+        .report-view { display: block; padding: 14mm 16mm !important; margin: 0 !important; max-width: 100% !important; box-shadow: none !important; border-radius: 0 !important; }
+        .report-comment-print-box { display: block !important; }
         #mainView, .navbar, #adminDashboardView, #loginView { display: none !important; }
     }
-    @media (max-width: 820px) { .layout-wrapper { flex-direction: column; } .leaderboard-sidebar { width: 100%; position: static; } }
+    @media (max-width: 900px) {
+        .layout-wrapper { flex-direction: column; }
+        .leaderboard-sidebar { width: 100%; position: static; }
+        .features-grid, .analytics-visuals-grid, .pie-breakdown-grid { grid-template-columns: 1fr; }
+        .school-print-banner { flex-wrap: wrap; }
+    }
 </style>
 </head>
 <body>
@@ -279,14 +485,15 @@ function saveGlobal() {
 <!-- ================= 1. LOGIN SCREEN ================= -->
 <div id="loginView">
     <div class="login-container">
-        <i class="fa-solid fa-graduation-cap" style="font-size:38px; color:#2563eb;"></i>
-        <h2>EDUGATES Teacher Login</h2>
-        <p style="color:#64748b; font-size:13px; margin:0 0 15px 0;">Select your name, subject, and enter your 5-digit PIN</p>
+        <div class="login-logo-box" id="loginLogoSlot"></div>
+        <h2>Smart Behavior & Academic Portal</h2>
+        <p style="color:#64748b; font-size:13px; margin:0 0 15px 0;">Select your name and enter your 5-digit PIN</p>
 
-        <label class="field-label">1. Select Teacher Name:</label>
+        <label class="field-label">1. Select Teacher / Admin Name:</label>
         <select id="loginTeacherSelect" class="login-select">
-            <option value="Mr. Ibrahim Abdullatif" selected>Mr. Ibrahim Abdullatif (Admin)</option>
-            <option value="Mr. Abdallah">Mr. Abdallah (School Principal)</option>
+            <option value="Mr. Abdallah" selected>Mr. Abdallah (School Principal)</option>
+            <option value="Mr. Abed Saleem">Mr. Abed Saleem (Academic Coordinator)</option>
+            <option value="Mr. Ibrahim Abdullatif">Mr. Ibrahim Abdullatif</option>
             <option value="Mr. Walid Abdulnaser">Mr. Walid Abdulnaser</option>
             <option value="Mr. Ahmed Mohamed">Mr. Ahmed Mohamed</option>
             <option value="Mr. Ahmed Mousa">Mr. Ahmed Mousa</option>
@@ -301,7 +508,6 @@ function saveGlobal() {
             <option value="Mr. Osama Mostafa">Mr. Osama Mostafa</option>
             <option value="Mr. Salah Mahmoud">Mr. Salah Mahmoud</option>
             <option value="Mr. Mohamed Ahmed">Mr. Mohamed Ahmed</option>
-            <option value="Mr. Abed Saleem">Mr. Abed Saleem</option>
             <option value="Mr. Mohamed Abrar">Mr. Mohamed Abrar</option>
             <option value="Mr. Magdy Abdulati">Mr. Magdy Abdulati</option>
             <option value="Mr. Ali Rashid">Mr. Ali Rashid</option>
@@ -310,24 +516,7 @@ function saveGlobal() {
             <option value="Mr. Mazen Fathalrahman">Mr. Mazen Fathalrahman</option>
         </select>
 
-        <label class="field-label">2. Select Subject:</label>
-        <select id="loginSubjectSelect" class="login-select">
-            <option value="Science" selected>Science</option>
-            <option value="Math">Math</option>
-            <option value="English">English</option>
-            <option value="Arabic">Arabic</option>
-            <option value="Islamic Studies">Islamic Studies</option>
-            <option value="Social Studies">Social Studies</option>
-            <option value="Physics">Physics</option>
-            <option value="Chemistry">Chemistry</option>
-            <option value="Biology">Biology</option>
-            <option value="Computer">Computer</option>
-            <option value="Art">Art</option>
-            <option value="PE">PE</option>
-            <option value="School Principal">School Principal</option>
-        </select>
-
-        <label class="field-label">3. Enter 5-Digit PIN Code:</label>
+        <label class="field-label">2. Enter 5-Digit PIN Code:</label>
         <input type="password" id="loginPinInput" class="login-input" placeholder="•••••" maxlength="5" onkeypress="if(event.key==='Enter') executeDirectLogin()">
 
         <div class="mini-pad">
@@ -346,16 +535,186 @@ function saveGlobal() {
 
         <div id="loginErrorMsg" style="color:#dc2626; font-weight:bold; font-size:13px; min-height:18px; margin-top:4px;"></div>
 
-        <button type="button" class="login-submit-btn" onclick="executeDirectLogin()">Enter Dashboard <i class="fa-solid fa-arrow-right"></i></button>
+        <button type="button" class="login-submit-btn" onclick="executeDirectLogin()">Enter Portal <i class="fa-solid fa-arrow-right"></i></button>
     </div>
 </div>
 
-<!-- ================= 2. MAIN DASHBOARD ================= -->
+<!-- ================= 2. MAIN APPLICATION WRAPPER ================= -->
 <div id="dashboardView" style="display:none;">
     <div class="navbar no-print" id="navbar"></div>
 
-    <div class="container" id="mainView">
-        <!-- Admin Read-Only Mode Banner -->
+    <!-- ================= 2A. EXECUTIVE HOME PORTAL ================= -->
+    <div id="homePortalView" class="no-print">
+        <div class="hero-banner">
+            <div class="hero-left">
+                <div class="hero-avatar"><i class="fa-solid fa-user-tie"></i></div>
+                <div class="hero-title">
+                    <h1 id="portalWelcomeName">Welcome, Teacher</h1>
+                    <div class="hero-meta">
+                        <span class="hero-pill" id="portalRolePill"><i class="fa-solid fa-shield-halved"></i> Role</span>
+                        <span class="hero-pill" id="portalActiveSubjectPill">
+                            <i class="fa-solid fa-book"></i> Active Subject:
+                            <select id="portalSubjectSwitcher" class="hero-sub-select" onchange="switchSubjectInternal(this.value)"></select>
+                        </span>
+                        <span class="hero-pill" style="background:rgba(16,185,129,0.25); border-color:#34d399; color:#ecfdf5;">
+                            <i class="fa-solid fa-cloud"></i> Cloud Synced
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-right">
+                <div id="portalHeroLogoSlot"></div>
+                <div class="hero-date" id="portalLiveDate"></div>
+            </div>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:#dbeafe; color:#1d4ed8;"><i class="fa-solid fa-chalkboard"></i></div>
+                <div class="kpi-info"><h4 id="kpiTotalClasses">0</h4><p>Registered Classes</p></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:#e0e7ff; color:#4338ca;"><i class="fa-solid fa-user-graduate"></i></div>
+                <div class="kpi-info"><h4 id="kpiTotalStudents">0</h4><p>Total Students</p></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:#dcfce7; color:#15803d;"><i class="fa-solid fa-bolt"></i></div>
+                <div class="kpi-info"><h4 id="kpiTodayInteractions">0</h4><p>Recorded Interactions</p></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:#fef9c3; color:#a16207;"><i class="fa-solid fa-chart-pie"></i></div>
+                <div class="kpi-info"><h4 id="kpiOverallAverage">100%</h4><p>Overall School Behavior Avg</p></div>
+            </div>
+        </div>
+
+        <!-- ADMIN ANALYTICS COMMAND CENTER -->
+        <div id="portalAdminAnalyticsHub" class="admin-analytics-hub" style="display:none;">
+            <div class="analytics-top-bar">
+                <div>
+                    <h3 style="margin:0; font-size:20px; color:#0f172a; display:flex; align-items:center; gap:8px;">
+                        <i class="fa-solid fa-chart-line" style="color:#2563eb;"></i>
+                        School Behavioral Analytics & Trend Monitor (مؤشر السلوك العام للمدرسة)
+                    </h3>
+                    <span style="font-size:12px; color:#64748b; font-weight:700;">Live multi-period behavioral index, daily trajectory, and positive/negative ratio</span>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <select id="hubClassScopeSelect" class="feat-select" style="min-width:170px;" onchange="refreshAdminAnalyticsHub()">
+                        <option value="ALL_CLASSES">🏫 All School Classes (5C-12C)</option>
+                    </select>
+                    <div id="hubUniversalPeriodBar" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
+                    <button class="feat-btn" style="background:linear-gradient(135deg,#059669,#047857);" onclick="openAdminPieBreakdownReport()">
+                        <i class="fa-solid fa-chart-pie"></i> Pie Chart & Breakdown
+                    </button>
+                </div>
+            </div>
+
+            <div class="analytics-visuals-grid">
+                <div class="gauge-box" id="hubGaugeContainer"></div>
+                <div class="trend-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+                        <strong style="font-size:14px; color:#0f172a;"><i class="fa-solid fa-wave-square" style="color:#2563eb;"></i> Daily Behavioral Trajectory (مؤشر مستوى السلوك على مدار الأيام)</strong>
+                        <span id="hubTrendStatusBadge" class="percentage-badge perc-high readonly-badge">⚖️ Stable</span>
+                    </div>
+                    <div id="hubTrendChartSvgSlot" style="width:100%; overflow-x:auto;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Launchpad Cards -->
+        <h3 class="portal-sec-title"><i class="fa-solid fa-compass" style="color:#2563eb;"></i> System Features & Modules (بوابات النظام الرئيسية)</h3>
+        <div class="features-grid">
+            <div class="feat-card" id="featCardBoard">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);"><i class="fa-solid fa-chalkboard-user"></i></div>
+                    <div class="feat-text">
+                        <h3>1. Classroom Behavior Board</h3>
+                        <p>Interactive smartboard tracker for positive/negative behaviors, spinning wheel, quizzes, and projects.</p>
+                    </div>
+                </div>
+                <div class="feat-controls">
+                    <select id="featSelectBoard" class="feat-select"></select>
+                    <button class="feat-btn" style="background:#2563eb;" onclick="launchFeature('board')"><i class="fa-solid fa-play"></i> Open Board</button>
+                </div>
+            </div>
+
+            <div class="feat-card" id="featCardClassReport">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);"><i class="fa-solid fa-file-contract"></i></div>
+                    <div class="feat-text">
+                        <h3>2. Class & W/M Averages Reports</h3>
+                        <p>Generate and print full class academic & behavior tables filterable by Day, Week (Sun-Thu), or Month.</p>
+                    </div>
+                </div>
+                <div class="feat-controls">
+                    <select id="featSelectClassReport" class="feat-select"></select>
+                    <button class="feat-btn" style="background:#8b5cf6;" onclick="launchFeature('classReport')"><i class="fa-solid fa-table"></i> Open Report</button>
+                </div>
+            </div>
+
+            <div class="feat-card" id="featCardHonorRoll">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#eab308,#ca8a04);"><i class="fa-solid fa-trophy"></i></div>
+                    <div class="feat-text">
+                        <h3>3. Honor Roll & Top Students</h3>
+                        <p>View and print the top 10 leaderboard ranked by Net Score (Positives minus Negatives).</p>
+                    </div>
+                </div>
+                <div class="feat-controls">
+                    <select id="featSelectLeaderboard" class="feat-select"></select>
+                    <button class="feat-btn" style="background:#ca8a04;" onclick="launchFeature('leaderboard')"><i class="fa-solid fa-medal"></i> Honor Roll</button>
+                </div>
+            </div>
+
+            <div class="feat-card" id="featCardArchive">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#059669,#047857);"><i class="fa-solid fa-calendar-days"></i></div>
+                    <div class="feat-text">
+                        <h3>4. Saved Days & Archive Center</h3>
+                        <p>Browse previously saved days or return to edit historical attendance and behavior records.</p>
+                    </div>
+                </div>
+                <div class="feat-controls">
+                    <select id="featSelectArchiveClass" class="feat-select" onchange="populatePortalArchiveDates(this.value)"></select>
+                    <select id="featSelectArchiveDate" class="feat-select"></select>
+                    <button class="feat-btn" style="background:#059669;" onclick="launchFeature('archive')"><i class="fa-solid fa-clock-rotate-left"></i> Open</button>
+                </div>
+            </div>
+
+            <div class="feat-card" id="featCardDataManage">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#f97316,#ea580c);"><i class="fa-solid fa-folder-plus"></i></div>
+                    <div class="feat-text">
+                        <h3>5. Classes & Roster Import</h3>
+                        <p>Create custom classes or import student name lists directly from Excel (.xlsx), Word (.docx), or Text files.</p>
+                    </div>
+                </div>
+                <div class="feat-controls">
+                    <button class="feat-btn" style="background:#10b981; flex:1; justify-content:center;" onclick="promptNewCustomClass()"><i class="fa-solid fa-plus"></i> New Custom Class</button>
+                    <button class="feat-btn" style="background:#f97316; flex:1; justify-content:center;" onclick="document.getElementById('fileUpload').click()"><i class="fa-solid fa-file-import"></i> Import File</button>
+                </div>
+            </div>
+
+            <div class="feat-card" id="featCardAdmin">
+                <div class="feat-top">
+                    <div class="feat-icon-box" style="background:linear-gradient(135deg,#0f172a,#334155); color:#fde047;"><i class="fa-solid fa-crown"></i></div>
+                    <div class="feat-text">
+                        <h3>Administration & Global Reports Center</h3>
+                        <p>Global Top Students across subjects, Positive/Negative Pie Chart, student search, and teacher boards.</p>
+                    </div>
+                </div>
+                <div class="feat-controls" id="featAdminControls"></div>
+            </div>
+        </div>
+
+        <div id="portalQuickClassesSection">
+            <h3 class="portal-sec-title"><i class="fa-solid fa-grip" style="color:#059669;"></i> Quick Class Access (الدخول السريع للفصول)</h3>
+            <div class="class-matrix-grid" id="portalClassMatrix"></div>
+        </div>
+    </div>
+
+    <!-- ================= 2B. CLASSROOM TRACKER VIEW ================= -->
+    <div class="container" id="mainView" style="display:none;">
         <div id="readOnlyBanner" class="readonly-banner no-print">
             <div><i class="fa-solid fa-eye"></i> <strong>وضع المشاهدة فقط (Admin Read-Only View):</strong> أنت تستعرض فصول وتقارير المعلم (<span id="roTeacherName"></span>) — التعديل مقفل لحماية بيانات المعلم.</div>
             <button class="ctrl-btn" style="background:#1e40af; padding:6px 14px;" onclick="exitAdminViewToPanel()"><i class="fa-solid fa-arrow-left"></i> العودة للوحة الإدارة</button>
@@ -363,19 +722,30 @@ function saveGlobal() {
 
         <div class="header-box no-print">
             <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
                 <h1 id="classTitle" style="margin:0; font-size:24px;">GRADE 5C</h1>
-                <span class="teacher-badge" id="teacherBadge"></span>
+                <span class="teacher-badge">
+                    <span id="teacherBadgeName"></span>
+                    <span id="boardActiveSubjectWrap" style="display:inline-flex; align-items:center; gap:6px;">
+                        | Subject:
+                        <select id="boardSubjectSwitcher" class="board-sub-select" onchange="switchSubjectInternal(this.value)"></select>
+                    </span>
+                </span>
                 <span id="interactionHint" style="font-size:12px; color:#475569; background:#f1f5f9; padding:5px 10px; border-radius:6px; font-weight:bold;">
                     💡 Click/Tap = Add (+1) | Right-Click or Long-Press = Remove (-1)
                 </span>
             </div>
-            <div id="headerClassActions" style="display:flex; gap:8px;">
-                <button class="ctrl-btn" style="background:#10b981;" onclick="promptNewCustomClass()"><i class="fa-solid fa-plus"></i> Custom Class</button>
-                <button class="ctrl-btn" style="background:#ef4444;" onclick="deleteCurrentClass()"><i class="fa-solid fa-trash"></i> Delete Class</button>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button class="ctrl-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:white; box-shadow:0 3px 10px rgba(217,119,6,0.35);" onclick="openSpinWheelModal()">
+                    <i class="fa-solid fa-dharmachakra fa-spin"></i> 🎡 Spin Wheel
+                </button>
+                <div id="headerClassActions" style="display:flex; gap:8px;">
+                    <button class="ctrl-btn" style="background:#10b981;" onclick="promptNewCustomClass()"><i class="fa-solid fa-plus"></i> Custom Class</button>
+                    <button class="ctrl-btn" style="background:#ef4444;" onclick="deleteCurrentClass()"><i class="fa-solid fa-trash"></i> Delete Class</button>
+                </div>
             </div>
         </div>
 
-        <!-- History Edit Banner -->
         <div id="historyBanner" class="history-edit-banner no-print"></div>
 
         <div class="controls-section no-print">
@@ -393,7 +763,6 @@ function saveGlobal() {
             </div>
         </div>
 
-        <!-- Bulk Bar with Counters & Clear All Button -->
         <div class="bulk-bar no-print" id="bulkActionBar">
             <div style="white-space:nowrap;">
                 <strong style="color:#1e3a8a; display:block; font-size:14px;"><i class="fa-solid fa-users"></i> All Class Students:</strong>
@@ -407,10 +776,87 @@ function saveGlobal() {
         <div class="layout-wrapper">
             <div class="main-content" id="app"></div>
             <div class="leaderboard-sidebar no-print">
-                <h3 style="margin-top:0; text-align:center;"><i class="fa-solid fa-trophy" style="color:#eab308"></i> Top Students</h3>
+                <h3 style="margin-top:0; margin-bottom:4px; text-align:center;"><i class="fa-solid fa-trophy" style="color:#eab308"></i> Top Students</h3>
+                <p style="font-size:11px; color:#64748b; text-align:center; margin:0 0 10px 0; font-weight:bold;">Ranked by Net Points (Positives - Negatives)</p>
                 <ul class="lb-list" id="leaderboardList"></ul>
                 <button class="ctrl-btn" style="width:100%; justify-content:center;" onclick="openLeaderboardReport()"><i class="fa-solid fa-print"></i> Print Top Students</button>
             </div>
+        </div>
+    </div>
+
+    <!-- TRUE GRAPHICAL SPINNING WHEEL MODAL -->
+    <div id="wheelModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.82); backdrop-filter:blur(5px); z-index:99999; align-items:center; justify-content:center; padding:15px;" class="no-print">
+        <div style="background:white; width:100%; max-width:540px; padding:24px 28px; border-radius:24px; box-shadow:0 25px 50px rgba(0,0,0,0.45); text-align:center; position:relative;">
+            <button onclick="closeSpinWheelModal()" style="position:absolute; top:14px; right:18px; background:#f1f5f9; width:36px; height:36px; border-radius:50%; border:none; font-size:20px; color:#334155; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+            <h2 style="margin:0 0 4px 0; color:#0f172a; font-size:22px;"><i class="fa-solid fa-dharmachakra" style="color:#f59e0b;"></i> Classroom Lucky Spin Wheel</h2>
+            <p id="wheelClassSubtitle" style="color:#64748b; font-size:13px; font-weight:bold; margin:0 0 14px 0;"></p>
+
+            <div style="position:relative; width:360px; height:360px; margin:0 auto 16px auto; max-width:100%;">
+                <div style="position:absolute; right:-14px; top:50%; transform:translateY(-50%); width:0; height:0; border-top:16px solid transparent; border-bottom:16px solid transparent; border-right:28px solid #dc2626; z-index:10; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));"></div>
+                <canvas id="wheelCanvas" width="360" height="360" style="width:100%; height:100%; border-radius:50%; box-shadow:0 8px 25px rgba(0,0,0,0.2); border:5px solid #1e293b;"></canvas>
+            </div>
+
+            <div id="wheelWinnerBanner" style="background:linear-gradient(135deg,#fef9c3,#fde047); border:2px solid #eab308; border-radius:14px; padding:12px 16px; margin-bottom:16px; min-height:54px; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:900; color:#854d0e;">
+                Click "SPIN THE WHEEL" to pick a student!
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+                <button class="ctrl-btn" id="btnSpinTrigger" style="background:linear-gradient(135deg,#2563eb,#1d4ed8); padding:12px 26px; font-size:16px; border-radius:10px;" onclick="spinTheWheelNow()">
+                    <i class="fa-solid fa-play"></i> 🎯 SPIN THE WHEEL
+                </button>
+                <button class="ctrl-btn" id="btnWheelReward" style="background:#16a34a; padding:12px 20px; font-size:15px; border-radius:10px; display:none;" onclick="rewardWheelWinner()">
+                    <i class="fa-solid fa-hand"></i> 👏 +1 Participation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN POSITIVE VS NEGATIVE PIE CHART & BREAKDOWN REPORT VIEW -->
+    <div class="report-view" id="adminAnalyticsView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;"><i class="fa-solid fa-chart-pie" style="color:#2563eb;"></i> School Behavioral Analytics & Positive/Negative Breakdown</h2>
+        <h3 id="aab-subtitle" style="text-align:center; color:#059669; margin:6px 0;"></h3>
+
+        <div class="universal-period-bar no-print">
+            <div>
+                <strong><i class="fa-solid fa-users-rectangle"></i> Class Scope: </strong>
+                <select id="aab-classFilter" class="feat-select" onchange="renderAdminPieBreakdownReport()"></select>
+            </div>
+            <div id="aabUniversalPeriodSlot" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+
+        <div class="report-stats">
+            <div><h3 id="aab-overall-perc" style="color:#2563eb; margin:0;">100%</h3><small>Overall Behavior Score</small></div>
+            <div><h3 id="aab-total-pos" style="color:#16a34a; margin:0;">+0</h3><small>Total Positive Icons</small></div>
+            <div><h3 id="aab-total-neg" style="color:#dc2626; margin:0;">-0</h3><small>Total Negative Icons</small></div>
+            <div><h3 id="aab-pos-ratio" style="color:#059669; margin:0;">100%</h3><small>Positive Ratio (%)</small></div>
+        </div>
+
+        <div class="pie-breakdown-grid">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:18px; text-align:center;" id="aab-pieChartSlot"></div>
+            <div>
+                <h4 style="margin:0 0 8px 0; color:#0f172a;"><i class="fa-solid fa-list-check" style="color:#2563eb;"></i> Behavior Categories Distribution (تفصيل الأيقونات الإيجابية والسلبية):</h4>
+                <table class="class-table" style="margin-top:0;">
+                    <thead>
+                        <tr><th>Behavior Indicator</th><th>Type</th><th>Total Count</th><th>Share (%)</th></tr>
+                    </thead>
+                    <tbody id="aab-behaviors-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <h4 style="margin:24px 0 8px 0; color:#0f172a;"><i class="fa-solid fa-school" style="color:#059669;"></i> Class-by-Class Behavioral Comparison (مقارنة الفصول ونسبة الإيجابي للسلبي):</h4>
+        <table class="class-table">
+            <thead>
+                <tr><th>Class Name</th><th>Students</th><th>Positive Icons (+)</th><th>Negative Icons (-)</th><th style="width:220px;">Positive vs. Negative Ratio</th><th>Class Behavior Avg</th></tr>
+            </thead>
+            <tbody id="aab-classes-tbody"></tbody>
+        </table>
+
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="openAdminDashboard()"><i class="fa-solid fa-crown"></i> Admin Center</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print Analytics PDF</button>
         </div>
     </div>
 
@@ -419,7 +865,10 @@ function saveGlobal() {
         <div class="school-banner-slot"></div>
         <h2 style="text-align:center; margin:0;">Student Behavior & Academic Report</h2>
         <h3 id="r-studentName" style="text-align:center; color:#2563eb; margin:6px 0;"></h3>
-        <p id="r-meta" style="text-align:center; color:#64748b; font-weight:bold;"></p>
+        <p id="r-meta" style="text-align:center; color:#64748b; font-weight:bold; margin:4px 0;"></p>
+
+        <div class="universal-period-bar no-print" id="stuReportPeriodBar"></div>
+
         <div class="report-stats">
             <div><h3 id="r-pos-score" style="color:#16a34a; margin:0;">0</h3><small>Positives</small></div>
             <div><h3 id="r-neg-score" style="color:#dc2626; margin:0;">0</h3><small>Negatives</small></div>
@@ -427,16 +876,24 @@ function saveGlobal() {
             <div><h3 id="r-project-score" style="color:#f59e0b; margin:0;">-</h3><small>Project</small></div>
             <div><h3 id="r-weekly-avg" style="color:#2563eb; margin:0;">-</h3><small>Weekly Avg</small></div>
             <div><h3 id="r-monthly-avg" style="color:#2563eb; margin:0;">-</h3><small>Monthly Avg</small></div>
-            <div><h3 id="r-perc" style="margin:0;">0%</h3><small>Current Score</small></div>
+            <div><h3 id="r-perc" style="margin:0;">0%</h3><small>Selected Period Score</small></div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
             <ul id="r-positive-list" style="list-style:none; padding:0;"></ul>
             <ul id="r-negative-list" style="list-style:none; padding:0;"></ul>
         </div>
+
+        <div class="report-comment-section" id="r-commentSection">
+            <h4><i class="fa-solid fa-comment-dots" style="color:#2563eb;"></i> Teacher's Comment & Recommendations (ملاحظات المعلم):</h4>
+            <textarea id="r-teacherCommentInput" class="report-comment-textarea" placeholder="Write a personalized note or recommendation for the student/parent before printing..." oninput="saveStudentComment(this.value)"></textarea>
+            <div id="r-teacherCommentPrint" class="report-comment-print-box">No additional comments.</div>
+        </div>
+
         <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
-            <button class="ctrl-btn" id="btnOpenGlobal" style="background:#8b5cf6; display:none;" onclick="openGlobalReportFromStudent()">Global Report (All Subjects)</button>
-            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()"><i class="fa-solid fa-chalkboard-user"></i> Class Board</button>
+            <button class="ctrl-btn" id="btnOpenGlobal" style="background:#8b5cf6; display:none;" onclick="openGlobalReportFromStudent()"><i class="fa-solid fa-globe"></i> Global Report (All Subjects)</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print PDF</button>
         </div>
     </div>
 
@@ -445,28 +902,45 @@ function saveGlobal() {
         <div class="school-banner-slot"></div>
         <h2 style="text-align:center; margin:0;">Class Comprehensive & Averages Report</h2>
         <h3 id="cr-className" style="text-align:center; color:#8b5cf6; margin:6px 0;"></h3>
+
+        <div class="universal-period-bar no-print" id="clsReportPeriodBar"></div>
+
         <table class="class-table">
-            <thead><tr><th>Student Name</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Weekly Avg</th><th>Monthly Avg</th><th>Score</th></tr></thead>
+            <thead><tr><th>Student Name</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Weekly Avg</th><th>Monthly Avg</th><th>Selected Period Score</th></tr></thead>
             <tbody id="cr-table-body"></tbody>
         </table>
         <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
-            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()"><i class="fa-solid fa-chalkboard-user"></i> Class Board</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print PDF</button>
         </div>
     </div>
 
     <!-- TOP STUDENTS REPORT -->
     <div class="report-view" id="leaderboardReportView">
         <div class="school-banner-slot"></div>
-        <h2 style="text-align:center; margin:0;">Top Students Honor Roll</h2>
+        <h2 style="text-align:center; margin:0;">Top Students Honor Roll (Ranked by Net Positive Difference)</h2>
         <h3 id="lbr-className" style="text-align:center; color:#ca8a04; margin:6px 0;"></h3>
+
+        <div class="universal-period-bar no-print" id="lbrReportPeriodBar"></div>
+
         <table class="class-table">
-            <thead><tr><th>Rank</th><th>Student Name</th><th>Behavior Score</th><th>Positive Icons</th></tr></thead>
+            <thead>
+                <tr>
+                    <th style="width:65px;">Rank</th>
+                    <th>Student Name</th>
+                    <th>Positive Icons (+)</th>
+                    <th>Negative Icons (-)</th>
+                    <th>Net Difference (Pos - Neg)</th>
+                    <th>Behavior Score</th>
+                </tr>
+            </thead>
             <tbody id="lbr-table-body"></tbody>
         </table>
         <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back</button>
-            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()"><i class="fa-solid fa-chalkboard-user"></i> Class Board</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print PDF</button>
         </div>
     </div>
 
@@ -475,22 +949,36 @@ function saveGlobal() {
         <div class="school-banner-slot"></div>
         <h2 style="text-align:center; margin:0;">Global Multi-Subject Student Report</h2>
         <h3 id="gr-studentName" style="text-align:center; color:#2563eb; margin:6px 0;"></h3>
-        <div class="no-print" style="text-align:center; margin:12px 0;">
-            <strong>Filter Subject: </strong>
-            <select id="gr-subjectFilter" onchange="generateGlobalReportHTML(this.value)" style="padding:6px; font-weight:bold;"></select>
+        <p id="gr-periodSubtitle" style="text-align:center; color:#059669; font-weight:bold; margin:4px 0;"></p>
+
+        <div class="universal-period-bar no-print">
+            <div>
+                <strong><i class="fa-solid fa-book"></i> Subject: </strong>
+                <select id="gr-subjectFilter" class="feat-select" onchange="generateGlobalReportHTML(this.value)"></select>
+            </div>
+            <div id="grUniversalPeriodSlot" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
         </div>
+
         <div class="report-stats">
             <div><h3 id="gr-pos-score" style="color:#16a34a; margin:0;">0</h3><small>Total Positives</small></div>
             <div><h3 id="gr-neg-score" style="color:#dc2626; margin:0;">0</h3><small>Total Negatives</small></div>
             <div><h3 id="gr-perc" style="color:#2563eb; margin:0;">0%</h3><small>Global Average</small></div>
         </div>
         <table class="class-table">
-            <thead><tr><th>Subject</th><th>Teacher</th><th>Class</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Score</th></tr></thead>
+            <thead><tr><th>Subject</th><th>Teacher</th><th>Class</th><th>Quiz</th><th>Project</th><th>Positives</th><th>Negatives</th><th>Score</th><th>Teacher Note</th></tr></thead>
             <tbody id="gr-table-body"></tbody>
         </table>
+
+        <div class="report-comment-section">
+            <h4><i class="fa-solid fa-file-signature" style="color:#2563eb;"></i> Administration / Coordinator Comment (ملاحظات الإدارة أو المنسق الأكاديمي):</h4>
+            <textarea id="gr-adminCommentInput" class="report-comment-textarea" placeholder="Write an overall administrative or academic comment before printing..." oninput="document.getElementById('gr-adminCommentPrint').textContent = this.value.trim() || 'No additional comments.'"></textarea>
+            <div id="gr-adminCommentPrint" class="report-comment-print-box">No additional comments.</div>
+        </div>
+
         <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="closeGlobalReport()">Back</button>
-            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="closeGlobalReport()"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print PDF</button>
         </div>
     </div>
 
@@ -499,17 +987,70 @@ function saveGlobal() {
         <div class="school-banner-slot"></div>
         <h2 style="text-align:center; margin:0;">Global Class Report (All Subjects)</h2>
         <h3 id="gcr-className" style="text-align:center; color:#8b5cf6; margin:6px 0;"></h3>
-        <div class="no-print" style="text-align:center; margin:12px 0;">
-            <strong>Filter Subject: </strong>
-            <select id="gcr-subjectFilter" onchange="generateGlobalClassReportHTML(this.value)" style="padding:6px; font-weight:bold;"></select>
+
+        <div class="universal-period-bar no-print">
+            <div>
+                <strong><i class="fa-solid fa-book"></i> Subject: </strong>
+                <select id="gcr-subjectFilter" class="feat-select" onchange="generateGlobalClassReportHTML(this.value)"></select>
+            </div>
+            <div id="gcrUniversalPeriodSlot" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
         </div>
+
         <table class="class-table">
-            <thead><tr><th>Student Name</th><th>Recorded Subjects</th><th>Total Positives</th><th>Total Negatives</th><th>Global Average</th></tr></thead>
+            <thead><tr><th>Student Name</th><th>Evaluations</th><th>Total Positives</th><th>Total Negatives</th><th>Net Points</th><th>Global Average</th></tr></thead>
             <tbody id="gcr-table-body"></tbody>
         </table>
         <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="openAdminDashboard()">Back to Admin</button>
-            <button class="ctrl-btn" style="background:#10b981;" onclick="window.print()">Print PDF</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="openAdminDashboard()"><i class="fa-solid fa-crown"></i> Back to Admin</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print PDF</button>
+        </div>
+    </div>
+
+    <!-- GLOBAL TOP STUDENTS REPORT -->
+    <div class="report-view" id="globalTopStudentsView">
+        <div class="school-banner-slot"></div>
+        <h2 style="text-align:center; margin:0;"><i class="fa-solid fa-trophy" style="color:#eab308;"></i> Global Top Students Honor Roll</h2>
+        <h3 id="gts-subtitle" style="text-align:center; color:#ca8a04; margin:6px 0;"></h3>
+        
+        <div class="universal-period-bar no-print">
+            <div>
+                <strong><i class="fa-solid fa-users-rectangle"></i> Class: </strong>
+                <select id="gts-classFilter" class="feat-select" onchange="generateGlobalTopStudentsHTML()"></select>
+            </div>
+            <div>
+                <strong><i class="fa-solid fa-book"></i> Subject: </strong>
+                <select id="gts-subjectFilter" class="feat-select" onchange="generateGlobalTopStudentsHTML()"></select>
+            </div>
+            <div id="gtsUniversalPeriodSlot" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;"></div>
+        </div>
+
+        <table class="class-table">
+            <thead>
+                <tr>
+                    <th style="width:65px;">Rank</th>
+                    <th>Student Name</th>
+                    <th>Class</th>
+                    <th>Evaluations</th>
+                    <th>Total Positives (+)</th>
+                    <th>Total Negatives (-)</th>
+                    <th>Net Points (Pos - Neg)</th>
+                    <th>Overall Average</th>
+                </tr>
+            </thead>
+            <tbody id="gts-table-body"></tbody>
+        </table>
+
+        <div class="report-comment-section">
+            <h4><i class="fa-solid fa-award" style="color:#ca8a04;"></i> Honor Roll Congratulations / Administration Note:</h4>
+            <textarea id="gts-commentInput" class="report-comment-textarea" placeholder="Write a congratulatory note for the top students before printing..." oninput="document.getElementById('gts-commentPrint').textContent = this.value.trim() || 'Congratulations to our outstanding students for their exemplary behavior and academic excellence!'"></textarea>
+            <div id="gts-commentPrint" class="report-comment-print-box">Congratulations to our outstanding students for their exemplary behavior and academic excellence!</div>
+        </div>
+
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:25px;" class="no-print">
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Home Portal</button>
+            <button class="ctrl-btn" style="background:#64748b;" onclick="openAdminDashboard()"><i class="fa-solid fa-crown"></i> Back to Admin</button>
+            <button class="ctrl-btn" style="background:#10b981;" onclick="triggerCleanPrint()"><i class="fa-solid fa-print"></i> Print Honor Roll</button>
         </div>
     </div>
 
@@ -518,35 +1059,52 @@ function saveGlobal() {
         <div class="school-banner-slot"></div>
         <h2 style="text-align:center; margin:0;"><i class="fa-solid fa-crown" style="color:#eab308;"></i> Admin & Global Reports Center</h2>
         
+        <div style="background:#eff6ff; padding:15px; border-radius:10px; margin:15px 0; border:2px solid #93c5fd; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;" class="no-print">
+            <div>
+                <h4 style="margin:0; color:#1e3a8a;"><i class="fa-solid fa-chart-pie"></i> School Behavioral Analytics & Positive/Negative Pie Chart</h4>
+                <small style="color:#475569; font-weight:bold;">View Daily (pick any date), Weekly (Sun-Thu), Monthly, or Cumulative percentages, trend chart, and Pos/Neg ratio table</small>
+            </div>
+            <button class="ctrl-btn" style="background:#2563eb;" onclick="openAdminPieBreakdownReport()"><i class="fa-solid fa-chart-pie"></i> Open Pie Chart & Breakdown Table</button>
+        </div>
+
         <div style="background:#f8fafc; padding:15px; border-radius:10px; margin:15px 0; border:1px solid #e2e8f0;" class="no-print">
-            <h4 style="margin:0 0 8px 0;">1. Search Any Student Across All Subjects:</h4>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="adminSearchInput" list="allStudentsList" placeholder="Type student name..." style="flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
-                <button class="ctrl-btn" style="background:#8b5cf6;" onclick="adminSearchGlobalReport()">Student Global Report</button>
+            <h4 style="margin:0 0 8px 0;"><i class="fa-solid fa-magnifying-glass" style="color:#8b5cf6;"></i> 1. Search Any Student Across All Subjects:</h4>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <input type="text" id="adminSearchInput" list="allStudentsList" placeholder="Type student name..." style="flex:1; min-width:220px; padding:10px; border:1px solid #cbd5e1; border-radius:6px;">
+                <button class="ctrl-btn" style="background:#8b5cf6;" onclick="adminSearchGlobalReport()"><i class="fa-solid fa-file-invoice"></i> Student Global Report</button>
             </div>
         </div>
 
         <div style="background:#f8fafc; padding:15px; border-radius:10px; margin:15px 0; border:1px solid #e2e8f0;" class="no-print">
-            <h4 style="margin:0 0 8px 0;">2. Open Global Class Report (All Subjects):</h4>
-            <div style="display:flex; gap:8px;">
-                <select id="adminClassSelect" style="flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;"></select>
-                <button class="ctrl-btn" style="background:#059669;" onclick="adminSearchGlobalClassReport()">Class Global Report</button>
+            <h4 style="margin:0 0 8px 0;"><i class="fa-solid fa-users-rectangle" style="color:#059669;"></i> 2. Open Global Class Report (All Subjects):</h4>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <select id="adminClassSelect" style="flex:1; min-width:220px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;"></select>
+                <button class="ctrl-btn" style="background:#059669;" onclick="adminSearchGlobalClassReport()"><i class="fa-solid fa-chart-line"></i> Class Global Report</button>
             </div>
         </div>
 
-        <h4 style="margin:15px 0 8px 0;">3. All Teachers (Click any teacher to view their classes & reports in Read-Only mode):</h4>
+        <div style="background:#fefce8; padding:15px; border-radius:10px; margin:15px 0; border:2px solid #fde047;" class="no-print">
+            <h4 style="margin:0 0 8px 0; color:#854d0e;"><i class="fa-solid fa-trophy" style="color:#ca8a04;"></i> 3. Global Top Students (أوائل الطلاب كمتوسط عام لكل المواد أو لمادة محددة):</h4>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <select id="adminTopClassSelect" style="flex:1; min-width:180px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;"></select>
+                <select id="adminTopSubjectSelect" style="flex:1; min-width:180px; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:bold;"></select>
+                <button class="ctrl-btn" style="background:#ca8a04;" onclick="adminOpenGlobalTopStudents()"><i class="fa-solid fa-medal"></i> View Global Top Students</button>
+            </div>
+        </div>
+
+        <h4 style="margin:15px 0 8px 0;">4. All Teachers (Click any teacher to view their classes & reports in Read-Only mode):</h4>
         <table class="class-table">
-            <thead><tr><th>Teacher Name</th><th>Subject</th><th>Classes</th><th>Recorded Actions</th><th class="no-print">View Only</th></tr></thead>
+            <thead><tr><th>Teacher Name</th><th>Role / Active Subject</th><th>Classes</th><th>Recorded Actions</th><th class="no-print">View Only</th></tr></thead>
             <tbody id="admin-table-body"></tbody>
         </table>
         <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;" class="no-print">
-            <button class="ctrl-btn" style="background:#64748b;" onclick="closeReports()">Back to My Board</button>
+            <button class="ctrl-btn" style="background:#0f172a;" onclick="openHomePortal()"><i class="fa-solid fa-house"></i> Back to Home Portal</button>
         </div>
     </div>
 </div>
 
 <script>
-// ================= SMART INTERACTION ENGINE (LEFT-CLICK / RIGHT-CLICK / TAP / LONG-PRESS) =================
+// ================= SMART INTERACTION ENGINE =================
 let toastTimer = null;
 function showToast(msg, isRemove = false) {
     const t = document.getElementById('actionToast');
@@ -598,23 +1156,494 @@ function attachSmartInteraction(btnElement, onAdd, onRemove) {
     });
 }
 
-// ================= DASHBOARD & REPORTS LOGIC =================
-const bannerHTML = `
-<div class="school-print-banner">
-    <div style="display:flex; align-items:center; gap:12px;">
-        <img src="image_822203.png" alt="EDUGATES" onerror="this.style.display='none'">
-        <div>
-            <h2 style="margin:0; font-size:20px;">EDUGATES International School</h2>
-            <p style="margin:2px 0 0 0; font-size:12px; color:#475569;">Under the Supervision of Ministry of Education | License No. 229/S Authorized Curriculum: American</p>
+// ================= TRUE GRAPHICAL CANVAS SPINNING WHEEL =================
+const WHEEL_COLORS = ['#2563eb','#16a34a','#d97706','#9333ea','#dc2626','#0d9488','#4f46e5','#ca8a04','#0284c7','#be123c'];
+let wheelRotationAngle = 0;
+let isWheelSpinning = false;
+let wheelSelectedStudentId = null;
+
+function openSpinWheelModal() {
+    const students = (appData.classes[appData.currentClass] && appData.classes[appData.currentClass].students) || [];
+    if (students.length === 0) {
+        alert("No students in this class!");
+        return;
+    }
+    wheelSelectedStudentId = null;
+    document.getElementById('wheelClassSubtitle').textContent = `${appData.currentClass} — ${students.length} Students`;
+    document.getElementById('wheelWinnerBanner').textContent = 'Click "SPIN THE WHEEL" to pick a student!';
+    document.getElementById('btnWheelReward').style.display = 'none';
+    document.getElementById('wheelModal').style.display = 'flex';
+    drawWheelCanvas(wheelRotationAngle);
+}
+
+function closeSpinWheelModal() {
+    document.getElementById('wheelModal').style.display = 'none';
+}
+
+function drawWheelCanvas(angleOffset) {
+    const canvas = document.getElementById('wheelCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const students = (appData.classes[appData.currentClass] && appData.classes[appData.currentClass].students) || [];
+    const n = students.length;
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const radius = cx - 6;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (n === 0) return;
+
+    const arc = (2 * Math.PI) / n;
+
+    for (let i = 0; i < n; i++) {
+        const startAngle = angleOffset + i * arc;
+        const endAngle = startAngle + arc;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(startAngle + arc / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = n > 18 ? 'bold 10px Arial' : 'bold 11.5px Arial';
+        let shortName = students[i].name;
+        if (shortName.length > 20) shortName = shortName.slice(0, 19) + '…';
+        ctx.fillText(shortName, radius - 12, 4);
+        ctx.restore();
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
+    ctx.fillStyle = '#0f172a';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#fde047';
+    ctx.stroke();
+}
+
+function spinTheWheelNow() {
+    if (isWheelSpinning) return;
+    const students = (appData.classes[appData.currentClass] && appData.classes[appData.currentClass].students) || [];
+    if (students.length === 0) return;
+
+    isWheelSpinning = true;
+    document.getElementById('btnWheelReward').style.display = 'none';
+    document.getElementById('wheelWinnerBanner').textContent = '🎡 Spinning...';
+
+    const startAngle = wheelRotationAngle;
+    const extraSpins = (5 + Math.random() * 4) * 2 * Math.PI;
+    const targetAngle = startAngle + extraSpins;
+    const duration = 3400;
+    const startTime = performance.now();
+
+    function animateWheel(now) {
+        const elapsed = now - startTime;
+        const t = Math.min(1, elapsed / duration);
+        const easeOut = 1 - Math.pow(1 - t, 3);
+        wheelRotationAngle = startAngle + (targetAngle - startAngle) * easeOut;
+        drawWheelCanvas(wheelRotationAngle);
+
+        if (t < 1) {
+            requestAnimationFrame(animateWheel);
+        } else {
+            isWheelSpinning = false;
+            const n = students.length;
+            const arc = (2 * Math.PI) / n;
+            const normalized = ((2 * Math.PI - (wheelRotationAngle % (2 * Math.PI))) + 2 * Math.PI) % (2 * Math.PI);
+            const winningIndex = Math.floor(normalized / arc) % n;
+            const winner = students[winningIndex];
+
+            wheelSelectedStudentId = winner.id;
+            document.getElementById('wheelWinnerBanner').innerHTML = `🎉 Selected: <span style="color:#1e3a8a; text-decoration:underline;">${winner.name}</span> 🎉`;
+            if (!isReadOnlyView()) {
+                document.getElementById('btnWheelReward').style.display = 'inline-flex';
+            }
+            showToast(`🎯 Wheel picked: ${winner.name}`, false);
+        }
+    }
+    requestAnimationFrame(animateWheel);
+}
+
+function rewardWheelWinner() {
+    if (isReadOnlyView() || !wheelSelectedStudentId) return;
+    const students = appData.classes[appData.currentClass].students || [];
+    const stu = students.find(s => s.id === wheelSelectedStudentId);
+    if (!stu) return;
+
+    const partBehavior = behaviors.find(b => b.id === 'participation') || behaviors[2];
+    modifyStudentBehavior(stu, partBehavior, +1);
+    closeSpinWheelModal();
+}
+
+// ================= UNIFIED TOP STUDENTS COMPARATOR =================
+function compareTopStudentsByNetScore(a, b) {
+    if (b.netScore !== a.netScore) return b.netScore - a.netScore;
+    if (a.neg !== b.neg) return a.neg - b.neg;
+    if (b.perc !== a.perc) return b.perc - a.perc;
+    return b.pos - a.pos;
+}
+
+// ================= UNIVERSAL PERIOD FILTER ENGINE =================
+function getAllSavedDatesList() {
+    let allDatesSet = new Set();
+    Object.keys(globalData).forEach(tName => {
+        const tObj = globalData[tName];
+        Object.keys((tObj && tObj.classes) || {}).forEach(cName => {
+            const cls = tObj.classes[cName];
+            Object.keys((cls && cls.history) || {}).forEach(d => allDatesSet.add(d));
+        });
+    });
+    return Array.from(allDatesSet).sort((a, b) => b.localeCompare(a));
+}
+
+function getFormattedActivePeriodLabel() {
+    if (activeAnalyticsPeriod === 'today') {
+        return selectedSpecificDate ? `Daily Report: 📅 ${selectedSpecificDate}` : `Today (🟢 Current Active Board)`;
+    } else if (activeAnalyticsPeriod === 'weekly') {
+        const sunKey = selectedSchoolWeek || getSchoolWeekRange(new Date()).sunStr;
+        const wk = getSchoolWeekRange(sunKey);
+        return `Weekly Report (${wk.label})`;
+    } else if (activeAnalyticsPeriod === 'monthly') {
+        const mKey = selectedMonthlyKey || new Date().toISOString().slice(0, 7);
+        return `Monthly Report (📆 Month: ${mKey})`;
+    } else {
+        return `Cumulative Report (All Recorded Days to Date)`;
+    }
+}
+
+function renderUniversalPeriodBarInSlot(slotId) {
+    const slot = document.getElementById(slotId);
+    if (!slot) return;
+
+    const sortedDatesDesc = getAllSavedDatesList();
+    let subPickerHTML = '';
+
+    if (activeAnalyticsPeriod === 'today') {
+        subPickerHTML = `
+            <select class="feat-select" style="padding:6px 10px; font-size:12.5px;" onchange="selectedSpecificDate=this.value; refreshCurrentActiveView();">
+                <option value="" ${selectedSpecificDate === '' ? 'selected' : ''}>🟢 Today (Active Board)</option>
+                ${sortedDatesDesc.map(d => `<option value="${d}" ${selectedSpecificDate === d ? 'selected' : ''}>📅 Saved: ${d}</option>`).join('')}
+            </select>
+            <input type="date" value="${selectedSpecificDate || new Date().toISOString().split('T')[0]}"
+                style="padding:6px 8px; border-radius:8px; border:1px solid #cbd5e1; font-weight:bold; font-size:12.5px; background:white;"
+                onchange="selectedSpecificDate=this.value; refreshCurrentActiveView();" title="Pick any specific date">
+        `;
+    } else if (activeAnalyticsPeriod === 'weekly') {
+        let weeksMap = {};
+        const curWk = getSchoolWeekRange(new Date());
+        weeksMap[curWk.sunStr] = `📅 Current Week (${curWk.label})`;
+        sortedDatesDesc.forEach(d => {
+            const wk = getSchoolWeekRange(d);
+            if (!weeksMap[wk.sunStr]) weeksMap[wk.sunStr] = `📅 Week: ${wk.label}`;
+        });
+        const activeSun = selectedSchoolWeek || curWk.sunStr;
+        subPickerHTML = `
+            <select class="feat-select" style="padding:6px 10px; font-size:12.5px;" onchange="selectedSchoolWeek=this.value; refreshCurrentActiveView();">
+                ${Object.keys(weeksMap).sort().reverse().map(sunKey => `<option value="${sunKey}" ${activeSun === sunKey ? 'selected' : ''}>${weeksMap[sunKey]}</option>`).join('')}
+            </select>
+        `;
+    } else if (activeAnalyticsPeriod === 'monthly') {
+        let monthsSet = new Set();
+        const curMonth = new Date().toISOString().slice(0, 7);
+        monthsSet.add(curMonth);
+        sortedDatesDesc.forEach(d => monthsSet.add(d.slice(0, 7)));
+        const activeM = selectedMonthlyKey || curMonth;
+        subPickerHTML = `
+            <select class="feat-select" style="padding:6px 10px; font-size:12.5px;" onchange="selectedMonthlyKey=this.value; refreshCurrentActiveView();">
+                ${Array.from(monthsSet).sort().reverse().map(mKey => `<option value="${mKey}" ${activeM === mKey ? 'selected' : ''}>📆 Month: ${mKey}</option>`).join('')}
+            </select>
+        `;
+    } else {
+        subPickerHTML = `<span style="font-size:12px; color:#1e3a8a; font-weight:800; padding:4px 8px; background:#dbeafe; border-radius:8px;"><i class="fa-solid fa-layer-group"></i> All Days Combined</span>`;
+    }
+
+    slot.innerHTML = `
+        <div class="period-btn-group">
+            <button type="button" class="period-btn ${activeAnalyticsPeriod === 'today' ? 'active' : ''}" onclick="changeUniversalPeriod('today')">Today (اليومي)</button>
+            <button type="button" class="period-btn ${activeAnalyticsPeriod === 'weekly' ? 'active' : ''}" onclick="changeUniversalPeriod('weekly')">Weekly (الأسبوعي)</button>
+            <button type="button" class="period-btn ${activeAnalyticsPeriod === 'monthly' ? 'active' : ''}" onclick="changeUniversalPeriod('monthly')">Monthly (الشهري)</button>
+            <button type="button" class="period-btn ${activeAnalyticsPeriod === 'cumulative' ? 'active' : ''}" onclick="changeUniversalPeriod('cumulative')">Cumulative (التراكمي)</button>
         </div>
+        ${subPickerHTML}
+    `;
+}
+
+function changeUniversalPeriod(newPeriod) {
+    activeAnalyticsPeriod = newPeriod;
+    refreshCurrentActiveView();
+}
+
+function refreshCurrentActiveView() {
+    if (currentViewName === 'home') refreshAdminAnalyticsHub();
+    else if (currentViewName === 'analytics') renderAdminPieBreakdownReport();
+    else if (currentViewName === 'studentReport') renderStudentReportContent();
+    else if (currentViewName === 'classReport') renderClassReportContent();
+    else if (currentViewName === 'leaderboardReport') renderLeaderboardReportContent();
+    else if (currentViewName === 'globalStudentReport') generateGlobalReportHTML(document.getElementById('gr-subjectFilter').value || 'ALL');
+    else if (currentViewName === 'globalClassReport') generateGlobalClassReportHTML(document.getElementById('gcr-subjectFilter').value || 'ALL');
+    else if (currentViewName === 'globalTopStudents') generateGlobalTopStudentsHTML();
+}
+
+function getMatchingPeriodRecordsForClass(cls) {
+    if (!cls) return [];
+    let records = [];
+    if (activeAnalyticsPeriod === 'today') {
+        if (!selectedSpecificDate) {
+            records.push(cls);
+        } else if (cls.history && cls.history[selectedSpecificDate]) {
+            records.push(cls.history[selectedSpecificDate]);
+        }
+    } else if (activeAnalyticsPeriod === 'weekly') {
+        const curWk = getSchoolWeekRange(new Date());
+        const targetSun = selectedSchoolWeek || curWk.sunStr;
+        const wk = getSchoolWeekRange(targetSun);
+        if (cls.history) {
+            Object.keys(cls.history).forEach(d => {
+                if (d >= wk.sunStr && d <= wk.thuStr) records.push(cls.history[d]);
+            });
+        }
+        if (targetSun === curWk.sunStr) records.push(cls);
+    } else if (activeAnalyticsPeriod === 'monthly') {
+        const curMonth = new Date().toISOString().slice(0, 7);
+        const targetMonth = selectedMonthlyKey || curMonth;
+        if (cls.history) {
+            Object.keys(cls.history).forEach(d => {
+                if (d.startsWith(targetMonth)) records.push(cls.history[d]);
+            });
+        }
+        if (targetMonth === curMonth) records.push(cls);
+    } else {
+        records.push(cls);
+        if (cls.history) {
+            Object.values(cls.history).forEach(hObj => records.push(hObj));
+        }
+    }
+    return records;
+}
+
+function calculateStudentPeriodStatsInClass(sId, cls) {
+    const records = getMatchingPeriodRecordsForClass(cls);
+    let pos = 0, neg = 0, sumPerc = 0, cnt = 0;
+    let behaviorMap = {};
+    behaviors.forEach(b => behaviorMap[b.id] = 0);
+    let latestQuiz = '-', latestProj = '-', latestComment = '';
+
+    records.forEach(rec => {
+        const st = calculateStatsFromData(sId, rec);
+        if (st.hasData) {
+            pos += st.positiveCount;
+            neg += st.negativeCount;
+            sumPerc += st.percentage;
+            cnt++;
+            if (rec.scores && rec.scores[sId]) {
+                behaviors.forEach(b => {
+                    behaviorMap[b.id] += (rec.scores[sId][b.id] || 0);
+                });
+            }
+        }
+        if (rec.quizScores && rec.quizScores[sId]) latestQuiz = rec.quizScores[sId];
+        if (rec.projectScores && rec.projectScores[sId]) latestProj = rec.projectScores[sId];
+        if (rec.comments && rec.comments[sId]) latestComment = rec.comments[sId];
+    });
+
+    const hasData = cnt > 0;
+    const perc = hasData ? Math.round(sumPerc / cnt) : 100;
+    const netScore = pos - neg;
+    const isNegativeOnly = hasData && ((neg > 0 && pos === 0) || perc < 70);
+
+    let colorClass = "perc-none", text = "No Data";
+    if (hasData) {
+        if (isNegativeOnly || perc < 70) colorClass = "perc-critical";
+        else if (perc >= 90) colorClass = "perc-high";
+        else if (perc >= 80) colorClass = "perc-mid";
+        else colorClass = "perc-low";
+        text = `${perc}%${pos > 0 ? ' (+' + pos + ')' : ''}${neg > 0 && pos === 0 ? ' (-' + neg + ')' : ''}`;
+    }
+
+    return { positiveCount: pos, negativeCount: neg, percentage: perc, netScore, hasData, isNegativeOnly, colorClass, text, behaviorMap, latestQuiz, latestProj, latestComment };
+}
+
+// ================= HIGH-PRECISION LOGOS =================
+let svgIdCounter = 0;
+
+function getCogniaLogoHTML(heightPx = 74) {
+    svgIdCounter++;
+    const topArcId = `cogTopArc_${svgIdCounter}`;
+    const botArcId = `cogBotArc_${svgIdCounter}`;
+    return `
+    <div class="eis-logo-wrapper">
+        <img src="image_a74251.png" alt="Cognia Accredited" style="height:${heightPx}px; width:auto; object-fit:contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+        <svg viewBox="0 0 140 140" style="height:${heightPx}px; width:${heightPx}px; display:none;" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <path id="${topArcId}" d="M 22,70 A 48,48 0 1,1 118,70" />
+                <path id="${botArcId}" d="M 20,74 A 50,50 0 1,0 120,74" />
+            </defs>
+            <circle cx="70" cy="70" r="66" fill="#e5e7eb" stroke="#94a3b8" stroke-width="2"/>
+            <circle cx="70" cy="70" r="59" fill="#e5e7eb" stroke="#1e293b" stroke-width="1.8"/>
+            <text font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="11.5" fill="#1e293b" letter-spacing="2">
+                <textPath href="#${topArcId}" startOffset="50%" text-anchor="middle">ACCREDITED</textPath>
+            </text>
+            <text x="70" y="76" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="25" fill="#0f172a" letter-spacing="-0.5">cognia</text>
+            <circle cx="43.5" cy="68.5" r="3.2" fill="#dc2626"/>
+            <text x="112" y="65" font-family="Arial, sans-serif" font-weight="bold" font-size="6" fill="#0f172a">TM</text>
+            <text font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="7.8" fill="#1e293b" letter-spacing="0.8">
+                <textPath href="#${botArcId}" startOffset="50%" text-anchor="middle">NCA CASI • NWAC • SACS CASI</textPath>
+            </text>
+        </svg>
+    </div>`;
+}
+
+function getMOELogoHTML(heightPx = 72) {
+    return `
+    <div class="eis-logo-wrapper">
+        <img src="image_a7426b.png" alt="Ministry of Education" style="height:${heightPx}px; width:auto; object-fit:contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+        <svg viewBox="0 0 210 115" style="height:${heightPx}px; width:auto; display:none;" xmlns="http://www.w3.org/2000/svg">
+            <g fill="#0d9488">
+                <circle cx="35" cy="14" r="4.8"/><circle cx="50" cy="17" r="4.3"/><circle cx="65" cy="21" r="3.8"/><circle cx="79" cy="26" r="3.2"/><circle cx="92" cy="31" r="2.7"/>
+                <circle cx="35" cy="27" r="4.2"/><circle cx="50" cy="29" r="3.7"/><circle cx="65" cy="32" r="3.2"/><circle cx="79" cy="36" r="2.7"/><circle cx="92" cy="40" r="2.3"/>
+                <circle cx="35" cy="39" r="3.6"/><circle cx="50" cy="41" r="3.1"/><circle cx="65" cy="43" r="2.6"/><circle cx="79" cy="46" r="2.2"/>
+                <circle cx="105" cy="36" r="2.7"/><circle cx="105" cy="47" r="2.3"/>
+                <circle cx="175" cy="14" r="4.8"/><circle cx="160" cy="17" r="4.3"/><circle cx="145" cy="21" r="3.8"/><circle cx="131" cy="26" r="3.2"/><circle cx="118" cy="31" r="2.7"/>
+                <circle cx="175" cy="27" r="4.2"/><circle cx="160" cy="29" r="3.7"/><circle cx="145" cy="32" r="3.2"/><circle cx="131" cy="36" r="2.7"/><circle cx="118" cy="40" r="2.3"/>
+                <circle cx="175" cy="39" r="3.6"/><circle cx="160" cy="41" r="3.1"/><circle cx="145" cy="43" r="2.6"/><circle cx="131" cy="46" r="2.2"/>
+            </g>
+            <text x="105" y="78" text-anchor="middle" font-family="Tahoma, Arial, sans-serif" font-weight="900" font-size="25" fill="#0d9488">وزارة التعليم</text>
+            <text x="105" y="98" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="13.5" fill="#64748b" letter-spacing="0.4">Ministry of Education</text>
+        </svg>
+    </div>`;
+}
+
+function getOfficialEISLogoHTML(heightPx = 74) {
+    return `
+    <div class="eis-logo-wrapper">
+        <img src="image_a72424.png" alt="EIS EDUGATES INTERNATIONAL SCHOOL" style="height:${heightPx}px; width:auto; object-fit:contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+        <svg viewBox="0 0 435 120" style="height:${heightPx}px; width:auto; display:none;" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="6" width="82" height="108" fill="#ffffff" stroke="#475569" stroke-width="1.8"/>
+            <polygon points="7,9 37,25 7,41" fill="#262626"/>
+            <polygon points="18,8 32,8 32,17" fill="#facc15"/>
+            <rect x="36" y="8" width="8" height="22" fill="#2dd4bf"/>
+            <rect x="44" y="8" width="12" height="32" fill="#facc15"/>
+            <polygon points="56,8 84,8 70,27" fill="#0d9488"/>
+            <polygon points="71,1 83,1 83,37 77,32 71,37" fill="#262626"/>
+            <polygon points="7,38 41,55 7,71" fill="#0d9488"/>
+            <polygon points="24,35 44,35 44,50" fill="#1e3a8a"/>
+            <polygon points="12,69 44,55 44,83" fill="#1e3a8a"/>
+            <polygon points="7,75 35,89 7,105" fill="#52b788"/>
+            <polygon points="7,99 33,112 7,112" fill="#1e3a8a"/>
+            <polygon points="34,104 44,96 44,112" fill="#facc15"/>
+            <polygon points="46,29 84,29 80,39 85,45 78,53 85,61 75,68 57,68 46,49" fill="#52b788"/>
+            <polygon points="57,65 77,65 67,77" fill="#262626"/>
+            <polygon points="51,77 84,77 67,95" fill="#facc15"/>
+            <polygon points="48,61 51,67 48,73 45,67" fill="#52b788"/>
+            <polygon points="48,75 51,81 48,87 45,81" fill="#52b788"/>
+            <polygon points="48,89 51,95 48,101 45,95" fill="#52b788"/>
+            <polygon points="46,99 84,85 84,112 52,112" fill="#52b788"/>
+            <text x="100" y="79" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="48" fill="#1a365d" letter-spacing="1">EIS</text>
+            <line x1="184" y1="40" x2="184" y2="82" stroke="#cbd5e1" stroke-width="1.5"/>
+            <text x="192" y="57" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="18.5" fill="#1a365d" letter-spacing="0.6">EDUGATES</text>
+            <text x="192" y="78" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="16.5" fill="#1a365d" letter-spacing="0.5">INTERNATIONAL SCHOOL</text>
+        </svg>
+    </div>`;
+}
+
+const reportBannerHTML = `
+<div class="school-print-banner">
+    <div class="accreditation-logos-left">
+        ${getCogniaLogoHTML(74)}
+        ${getMOELogoHTML(70)}
     </div>
-    <div style="font-weight:bold; font-size:12px; text-align:right;">وزارة التعليم<br>Cognia Accredited</div>
+    <div style="display:flex; align-items:center;">
+        ${getOfficialEISLogoHTML(74)}
+    </div>
 </div>`;
 
-document.querySelectorAll('.school-banner-slot').forEach(s => s.innerHTML = bannerHTML);
+document.querySelectorAll('.school-banner-slot').forEach(s => s.innerHTML = reportBannerHTML);
+document.getElementById('loginLogoSlot').innerHTML = getOfficialEISLogoHTML(70);
+document.getElementById('portalHeroLogoSlot').innerHTML = getOfficialEISLogoHTML(64);
 document.getElementById('saveDatePicker').value = new Date().toISOString().split('T')[0];
 
+function populateSubjectDropdownElement(selectId, currentSub, isDisabled) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.innerHTML = '';
+    ALL_SUBJECTS.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        sel.appendChild(opt);
+    });
+    const validSub = ALL_SUBJECTS.includes(currentSub) ? currentSub : (DEFAULT_TEACHER_SUBJECTS[currentTeacher] || 'Science');
+    sel.value = validSub;
+    sel.disabled = !!isDisabled;
+}
+
+function switchSubjectInternal(newSub) {
+    if (isReadOnlyView() || ADMINS.includes(currentTeacher)) return;
+    appData.subject = newSub;
+    saveGlobal();
+    populateSubjectDropdownElement('portalSubjectSwitcher', newSub, false);
+    populateSubjectDropdownElement('boardSubjectSwitcher', newSub, false);
+    showToast(`Active Subject changed to: ${newSub}`, false);
+}
+
+function hideAllViews() {
+    ['homePortalView','mainView','studentReportView','classReportView','leaderboardReportView','globalReportView','globalClassReportView','globalTopStudentsView','adminAnalyticsView','adminDashboardView'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
+function launchPortalSession() {
+    appData = globalData[currentTeacher];
+    if (!appData.classes || Object.keys(appData.classes).length === 0) {
+        populateAllSchoolClasses(appData);
+    }
+    if (!appData.currentClass || !appData.classes[appData.currentClass]) {
+        appData.currentClass = Object.keys(appData.classes)[0];
+    }
+
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('dashboardView').style.display = 'block';
+    isHistoryMode = false;
+    historyDate = null;
+    buildAutocompleteList();
+    initAnalyticsScopeDropdowns();
+    openHomePortal();
+}
+
+function initAnalyticsScopeDropdowns() {
+    ['hubClassScopeSelect', 'aab-classFilter'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="ALL_CLASSES">🏫 All School Classes (5C-12C)</option>';
+        Object.keys(SCHOOL_CLASSES).forEach(c => {
+            const o = document.createElement('option');
+            o.value = c; o.textContent = c;
+            sel.appendChild(o);
+        });
+    });
+}
+
+function openHomePortal() {
+    currentViewName = 'home';
+    hideAllViews();
+    document.getElementById('homePortalView').style.display = 'block';
+    renderNavbar();
+    renderHomePortal();
+    window.scrollTo(0, 0);
+}
+
 function openMainDashboard() {
+    currentViewName = 'board';
     appData = globalData[currentTeacher];
     if (!appData.classes || Object.keys(appData.classes).length === 0) {
         populateAllSchoolClasses(appData);
@@ -627,12 +1656,513 @@ function openMainDashboard() {
     document.getElementById('dashboardView').style.display = 'block';
     hideAllViews();
     document.getElementById('mainView').style.display = 'block';
-    document.getElementById('teacherBadge').innerHTML = `<i class="fa-solid fa-user-tie"></i> ${currentTeacher} | <strong>${appData.subject || 'Science'}</strong>`;
 
-    isHistoryMode = false; historyDate = null;
-    buildAutocompleteList();
+    const roleTitle = getTeacherRoleTitle(currentTeacher);
+    document.getElementById('teacherBadgeName').innerHTML = `<i class="fa-solid fa-user-tie"></i> ${currentTeacher} (${roleTitle})`;
+
+    const isTargetAdmin = ADMINS.includes(currentTeacher);
+    const boardSubWrap = document.getElementById('boardActiveSubjectWrap');
+    if (isTargetAdmin) {
+        boardSubWrap.style.display = 'none';
+    } else {
+        boardSubWrap.style.display = 'inline-flex';
+        populateSubjectDropdownElement('boardSubjectSwitcher', appData.subject, isReadOnlyView());
+    }
+
     renderNavbar();
     renderClass();
+}
+
+// ================= EXECUTIVE ADMIN ANALYTICS ENGINE =================
+function computeSchoolAnalytics(classScope = 'ALL_CLASSES') {
+    let totalPos = 0;
+    let totalNeg = 0;
+    let sumPerc = 0;
+    let evalCount = 0;
+    let behaviorCounts = {};
+    behaviors.forEach(b => behaviorCounts[b.id] = 0);
+
+    let classStats = {};
+    Object.keys(SCHOOL_CLASSES).forEach(c => {
+        if (classScope === 'ALL_CLASSES' || classScope === c) {
+            classStats[c] = { pos: 0, neg: 0, sumP: 0, cnt: 0, stuCount: SCHOOL_CLASSES[c].length };
+        }
+    });
+
+    let allDatesSet = new Set();
+
+    Object.keys(globalData).forEach(tName => {
+        if (ADMINS.includes(tName)) return;
+        const tObj = globalData[tName];
+        Object.keys((tObj && tObj.classes) || {}).forEach(cName => {
+            if (classScope !== 'ALL_CLASSES' && cName !== classScope) return;
+            const cls = tObj.classes[cName];
+            Object.keys(cls.history || {}).forEach(d => allDatesSet.add(d));
+
+            const matchingRecords = getMatchingPeriodRecordsForClass(cls);
+            const stuList = cls.students || [];
+
+            matchingRecords.forEach(rec => {
+                stuList.forEach(stu => {
+                    const st = calculateStatsFromData(stu.id, rec);
+                    if (st.hasData) {
+                        totalPos += st.positiveCount;
+                        totalNeg += st.negativeCount;
+                        sumPerc += st.percentage;
+                        evalCount++;
+                        if (classStats[cName]) {
+                            classStats[cName].pos += st.positiveCount;
+                            classStats[cName].neg += st.negativeCount;
+                            classStats[cName].sumP += st.percentage;
+                            classStats[cName].cnt++;
+                        }
+                        if (rec.scores && rec.scores[stu.id]) {
+                            behaviors.forEach(b => {
+                                behaviorCounts[b.id] += (rec.scores[stu.id][b.id] || 0);
+                            });
+                        }
+                    }
+                });
+            });
+        });
+    });
+
+    const overallAvg = evalCount > 0 ? Math.round(sumPerc / evalCount) : 100;
+
+    const sortedDatesAsc = Array.from(allDatesSet).sort((a, b) => a.localeCompare(b));
+    let trendSeries = [];
+
+    sortedDatesAsc.forEach(d => {
+        let dSum = 0, dCnt = 0, dPos = 0, dNeg = 0;
+        Object.keys(globalData).forEach(tName => {
+            if (ADMINS.includes(tName)) return;
+            const tObj = globalData[tName];
+            Object.keys((tObj && tObj.classes) || {}).forEach(cName => {
+                if (classScope !== 'ALL_CLASSES' && cName !== classScope) return;
+                const cls = tObj.classes[cName];
+                if (cls.history && cls.history[d]) {
+                    (cls.students || []).forEach(stu => {
+                        const st = calculateStatsFromData(stu.id, cls.history[d]);
+                        if (st.hasData) { dSum += st.percentage; dCnt++; dPos += st.positiveCount; dNeg += st.negativeCount; }
+                    });
+                }
+            });
+        });
+        if (dCnt > 0) {
+            trendSeries.push({ label: d.slice(5), fullDate: d, avg: Math.round(dSum / dCnt), pos: dPos, neg: dNeg });
+        }
+    });
+
+    let tSum = 0, tCnt = 0, tPos = 0, tNeg = 0;
+    Object.keys(globalData).forEach(tName => {
+        if (ADMINS.includes(tName)) return;
+        const tObj = globalData[tName];
+        Object.keys((tObj && tObj.classes) || {}).forEach(cName => {
+            if (classScope !== 'ALL_CLASSES' && cName !== classScope) return;
+            const cls = tObj.classes[cName];
+            (cls.students || []).forEach(stu => {
+                const st = calculateStatsFromData(stu.id, cls);
+                if (st.hasData) { tSum += st.percentage; tCnt++; tPos += st.positiveCount; tNeg += st.negativeCount; }
+            });
+        });
+    });
+    trendSeries.push({
+        label: 'Today',
+        fullDate: 'Current Active Board',
+        avg: tCnt > 0 ? Math.round(tSum / tCnt) : overallAvg,
+        pos: tPos,
+        neg: tNeg
+    });
+
+    return { overallAvg, totalPos, totalNeg, evalCount, behaviorCounts, classStats, trendSeries };
+}
+
+function buildCircularGaugeSVG(percentage, totalPos, totalNeg) {
+    const color = percentage >= 90 ? '#16a34a' : (percentage >= 80 ? '#eab308' : '#dc2626');
+    const radius = 64;
+    const circum = 2 * Math.PI * radius;
+    const offset = circum - ((percentage / 100) * circum);
+    const totalActs = totalPos + totalNeg;
+    const posShare = totalActs > 0 ? Math.round((totalPos / totalActs) * 100) : 100;
+
+    return `
+        <svg viewBox="0 0 160 160" style="width:155px; height:155px;">
+            <circle cx="80" cy="80" r="${radius}" fill="none" stroke="#e2e8f0" stroke-width="14"/>
+            <circle cx="80" cy="80" r="${radius}" fill="none" stroke="${color}" stroke-width="14"
+                stroke-dasharray="${circum}" stroke-dashoffset="${offset}" stroke-linecap="round"
+                transform="rotate(-90 80 80)"/>
+            <text x="80" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="28" fill="#0f172a">${percentage}%</text>
+            <text x="80" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="10" fill="#64748b">OVERALL SCORE</text>
+        </svg>
+        <div style="display:flex; gap:14px; margin-top:8px; font-size:13px; font-weight:800;">
+            <span style="color:#16a34a;"><i class="fa-solid fa-thumbs-up"></i> +${totalPos} Pos</span>
+            <span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> -${totalNeg} Neg</span>
+        </div>
+        <div style="font-size:11px; color:#475569; margin-top:4px; font-weight:700;">Positive Ratio: ${posShare}%</div>
+    `;
+}
+
+function buildTrendChartSVG(trendSeries) {
+    const pts = trendSeries.slice(-10);
+    const w = 620, h = 185, padL = 42, padR = 25, padT = 24, padB = 34;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    const coords = pts.map((p, idx) => {
+        const x = pts.length === 1 ? padL + plotW / 2 : padL + (idx / (pts.length - 1)) * plotW;
+        const clampedVal = Math.max(50, Math.min(100, p.avg));
+        const y = padT + plotH - ((clampedVal - 50) / 50) * plotH;
+        return { x, y, ...p };
+    });
+
+    const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(' ');
+    const areaPoints = `${coords[0].x},${padT + plotH} ${polylinePoints} ${coords[coords.length - 1].x},${padT + plotH}`;
+
+    let circlesHTML = '';
+    coords.forEach(c => {
+        const dotColor = c.avg >= 90 ? '#16a34a' : (c.avg >= 80 ? '#eab308' : '#dc2626');
+        circlesHTML += `
+            <circle cx="${c.x}" cy="${c.y}" r="5.5" fill="${dotColor}" stroke="#ffffff" stroke-width="2">
+                <title>${c.fullDate}: ${c.avg}% (+${c.pos} / -${c.neg})</title>
+            </circle>
+            <text x="${c.x}" y="${c.y - 10}" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="10.5" fill="#0f172a">${c.avg}%</text>
+            <text x="${c.x}" y="${padT + plotH + 18}" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="10" fill="#475569">${c.label}</text>
+        `;
+    });
+
+    return `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; min-width:440px;">
+        <defs>
+            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#2563eb" stop-opacity="0.28"/>
+                <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0"/>
+            </linearGradient>
+        </defs>
+        <line x1="${padL}" y1="${padT}" x2="${w - padR}" y2="${padT}" stroke="#e2e8f0" stroke-dasharray="4"/>
+        <text x="${padL - 6}" y="${padT + 4}" text-anchor="end" font-size="9.5" font-weight="bold" fill="#64748b">100%</text>
+
+        <line x1="${padL}" y1="${padT + plotH * 0.4}" x2="${w - padR}" y2="${padT + plotH * 0.4}" stroke="#e2e8f0" stroke-dasharray="4"/>
+        <text x="${padL - 6}" y="${padT + plotH * 0.4 + 4}" text-anchor="end" font-size="9.5" font-weight="bold" fill="#64748b">80%</text>
+
+        <line x1="${padL}" y1="${padT + plotH}" x2="${w - padR}" y2="${padT + plotH}" stroke="#cbd5e1"/>
+        <text x="${padL - 6}" y="${padT + plotH + 4}" text-anchor="end" font-size="9.5" font-weight="bold" fill="#64748b">50%</text>
+
+        ${coords.length > 1 ? `<polygon points="${areaPoints}" fill="url(#trendGrad)"/>` : ''}
+        ${coords.length > 1 ? `<polyline fill="none" stroke="#2563eb" stroke-width="3" points="${polylinePoints}"/>` : ''}
+        ${circlesHTML}
+    </svg>`;
+}
+
+function buildDonutPieChartSVG(totalPos, totalNeg) {
+    const total = totalPos + totalNeg;
+    const posPerc = total > 0 ? Math.round((totalPos / total) * 100) : 100;
+    const negPerc = total > 0 ? (100 - posPerc) : 0;
+
+    const r = 60;
+    const circum = 2 * Math.PI * r;
+    const posDash = (posPerc / 100) * circum;
+
+    return `
+        <svg viewBox="0 0 170 170" style="width:170px; height:170px;">
+            <circle cx="85" cy="85" r="${r}" fill="none" stroke="${total > 0 ? '#ef4444' : '#e2e8f0'}" stroke-width="24"/>
+            <circle cx="85" cy="85" r="${r}" fill="none" stroke="#16a34a" stroke-width="24"
+                stroke-dasharray="${posDash} ${circum}" stroke-dashoffset="0"
+                transform="rotate(-90 85 85)"/>
+            <text x="85" y="82" text-anchor="middle" font-family="Arial, sans-serif" font-weight="900" font-size="22" fill="#16a34a">${posPerc}%</text>
+            <text x="85" y="99" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="9.5" fill="#475569">POSITIVE</text>
+        </svg>
+        <div style="display:flex; justify-content:center; gap:16px; margin-top:10px; font-size:13px; font-weight:800;">
+            <span style="color:#16a34a;">🟢 Positive: ${posPerc}% (${totalPos})</span>
+            <span style="color:#dc2626;">🔴 Negative: ${negPerc}% (${totalNeg})</span>
+        </div>
+    `;
+}
+
+function refreshAdminAnalyticsHub() {
+    const hub = document.getElementById('portalAdminAnalyticsHub');
+    if (!hub) return;
+    renderUniversalPeriodBarInSlot('hubUniversalPeriodBar');
+    const scope = document.getElementById('hubClassScopeSelect').value || 'ALL_CLASSES';
+    const data = computeSchoolAnalytics(scope);
+
+    document.getElementById('kpiOverallAverage').textContent = data.overallAvg + '%';
+    document.getElementById('kpiTodayInteractions').textContent = (data.totalPos + data.totalNeg);
+
+    document.getElementById('hubGaugeContainer').innerHTML = buildCircularGaugeSVG(data.overallAvg, data.totalPos, data.totalNeg);
+    document.getElementById('hubTrendChartSvgSlot').innerHTML = buildTrendChartSVG(data.trendSeries);
+
+    const badge = document.getElementById('hubTrendStatusBadge');
+    if (data.trendSeries.length >= 2) {
+        const last = data.trendSeries[data.trendSeries.length - 1].avg;
+        const prev = data.trendSeries[data.trendSeries.length - 2].avg;
+        if (last > prev) { badge.textContent = `📈 Improving (+${last - prev}%)`; badge.className = 'percentage-badge perc-high readonly-badge'; }
+        else if (last < prev) { badge.textContent = `📉 Declining (${last - prev}%)`; badge.className = 'percentage-badge perc-low readonly-badge'; }
+        else { badge.textContent = `⚖️ Stable (${last}%)`; badge.className = 'percentage-badge perc-mid readonly-badge'; }
+    } else {
+        badge.textContent = `📊 Active (${data.overallAvg}%)`;
+        badge.className = 'percentage-badge perc-high readonly-badge';
+    }
+}
+
+function openAdminPieBreakdownReport() {
+    currentViewName = 'analytics';
+    hideAllViews();
+    document.getElementById('adminAnalyticsView').style.display = 'block';
+    renderNavbar();
+
+    const hubScope = document.getElementById('hubClassScopeSelect').value || 'ALL_CLASSES';
+    document.getElementById('aab-classFilter').value = hubScope;
+    renderAdminPieBreakdownReport();
+}
+
+function renderAdminPieBreakdownReport() {
+    renderUniversalPeriodBarInSlot('aabUniversalPeriodSlot');
+    const scope = document.getElementById('aab-classFilter').value || 'ALL_CLASSES';
+    const data = computeSchoolAnalytics(scope);
+
+    document.getElementById('aab-subtitle').textContent = `${scope === 'ALL_CLASSES' ? 'All School Classes' : scope} — ${getFormattedActivePeriodLabel()}`;
+
+    const totalActs = data.totalPos + data.totalNeg;
+    const posRatio = totalActs > 0 ? Math.round((data.totalPos / totalActs) * 100) : 100;
+
+    document.getElementById('aab-overall-perc').textContent = data.overallAvg + '%';
+    document.getElementById('aab-total-pos').textContent = '+' + data.totalPos;
+    document.getElementById('aab-total-neg').textContent = '-' + data.totalNeg;
+    document.getElementById('aab-pos-ratio').textContent = `${posRatio}% Pos / ${100 - posRatio}% Neg`;
+
+    document.getElementById('aab-pieChartSlot').innerHTML = buildDonutPieChartSVG(data.totalPos, data.totalNeg);
+
+    const bTbody = document.getElementById('aab-behaviors-tbody');
+    bTbody.innerHTML = '';
+    behaviors.forEach(b => {
+        const c = data.behaviorCounts[b.id] || 0;
+        const share = totalActs > 0 ? Math.round((c / totalActs) * 100) : 0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:bold;"><i class="${b.icon}" style="color:${b.color}; width:20px;"></i> ${b.title}</td>
+            <td><span class="percentage-badge ${b.type === 'positive' ? 'perc-high' : 'perc-low'} readonly-badge">${b.type.toUpperCase()}</span></td>
+            <td style="font-weight:bold;">${c}</td>
+            <td><strong>${share}%</strong></td>
+        `;
+        bTbody.appendChild(tr);
+    });
+
+    const cTbody = document.getElementById('aab-classes-tbody');
+    cTbody.innerHTML = '';
+    Object.keys(data.classStats).forEach(cName => {
+        const st = data.classStats[cName];
+        const cTotal = st.pos + st.neg;
+        const cPosRatio = cTotal > 0 ? Math.round((st.pos / cTotal) * 100) : 100;
+        const cAvg = st.cnt > 0 ? Math.round(st.sumP / st.cnt) : 100;
+        const bCls = cAvg >= 90 ? 'perc-high' : (cAvg >= 80 ? 'perc-mid' : 'perc-low');
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:900; color:#1e3a8a;">${cName}</td>
+            <td>${st.stuCount} Students</td>
+            <td style="color:#16a34a; font-weight:bold;">+${st.pos}</td>
+            <td style="color:#dc2626; font-weight:bold;">-${st.neg}</td>
+            <td>
+                <div class="ratio-bar-bg"><div class="ratio-bar-fill" style="width:${cPosRatio}%;"></div></div>
+                <small style="font-weight:bold; color:#475569;">${cPosRatio}% Positive / ${100 - cPosRatio}% Negative</small>
+            </td>
+            <td><span class="percentage-badge ${bCls} readonly-badge">${cAvg}%</span></td>
+        `;
+        cTbody.appendChild(tr);
+    });
+}
+
+function renderHomePortal() {
+    appData = globalData[currentTeacher];
+    const readOnly = isReadOnlyView();
+    const realUser = isAdminImpersonating ? adminRealName : currentTeacher;
+    const isAdminUser = ADMINS.includes(realUser);
+    const isTargetAdmin = ADMINS.includes(currentTeacher);
+    const pureAdmin = isPureAdminAccount();
+    const roleLabel = getTeacherRoleTitle(currentTeacher);
+
+    document.getElementById('portalWelcomeName').textContent = readOnly
+        ? `Viewing Board: ${currentTeacher}`
+        : `Welcome, ${currentTeacher}`;
+
+    document.getElementById('portalRolePill').innerHTML = isTargetAdmin
+        ? `<i class="fa-solid fa-crown" style="color:#fde047;"></i> ${roleLabel} (Admin)`
+        : `<i class="fa-solid fa-chalkboard-user"></i> ${roleLabel}`;
+
+    document.getElementById('portalLiveDate').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const subPill = document.getElementById('portalActiveSubjectPill');
+    if (isTargetAdmin) {
+        subPill.style.display = 'none';
+    } else {
+        subPill.style.display = 'inline-flex';
+        populateSubjectDropdownElement('portalSubjectSwitcher', appData.subject, readOnly);
+    }
+
+    const analyticsHub = document.getElementById('portalAdminAnalyticsHub');
+    if (pureAdmin) {
+        analyticsHub.style.display = 'block';
+        refreshAdminAnalyticsHub();
+    } else {
+        analyticsHub.style.display = 'none';
+    }
+
+    ['featCardBoard', 'featCardClassReport', 'featCardHonorRoll', 'featCardArchive', 'featCardDataManage'].forEach(cardId => {
+        const el = document.getElementById(cardId);
+        if (el) el.style.display = pureAdmin ? 'none' : 'flex';
+    });
+    const quickSec = document.getElementById('portalQuickClassesSection');
+    if (quickSec) quickSec.style.display = pureAdmin ? 'none' : 'block';
+
+    const classNames = Object.keys(appData.classes || {});
+    let totalStudents = 0;
+    let totalInteractions = 0;
+    let sumPerc = 0;
+    let activeStudentsCount = 0;
+
+    if (pureAdmin) {
+        Object.keys(SCHOOL_CLASSES).forEach(c => totalStudents += SCHOOL_CLASSES[c].length);
+        document.getElementById('kpiTotalClasses').textContent = Object.keys(SCHOOL_CLASSES).length;
+        document.getElementById('kpiTotalStudents').textContent = totalStudents;
+    } else {
+        classNames.forEach(cName => {
+            const cls = appData.classes[cName];
+            const stuList = cls.students || [];
+            totalStudents += stuList.length;
+            stuList.forEach(s => {
+                const st = calculateStatsFromData(s.id, cls);
+                totalInteractions += (st.positiveCount + st.negativeCount);
+                if (st.hasData) { sumPerc += st.percentage; activeStudentsCount++; }
+            });
+        });
+        document.getElementById('kpiTotalClasses').textContent = classNames.length;
+        document.getElementById('kpiTotalStudents').textContent = totalStudents;
+        document.getElementById('kpiTodayInteractions').textContent = totalInteractions;
+        document.getElementById('kpiOverallAverage').textContent = activeStudentsCount > 0
+            ? Math.round(sumPerc / activeStudentsCount) + '%'
+            : '100%';
+    }
+
+    ['featSelectBoard', 'featSelectClassReport', 'featSelectLeaderboard', 'featSelectArchiveClass'].forEach(selId => {
+        const sel = document.getElementById(selId);
+        if (!sel) return;
+        sel.innerHTML = '';
+        classNames.forEach(cName => {
+            const opt = document.createElement('option');
+            opt.value = cName; opt.textContent = cName;
+            sel.appendChild(opt);
+        });
+        if (appData.currentClass) sel.value = appData.currentClass;
+    });
+
+    populatePortalArchiveDates(document.getElementById('featSelectArchiveClass').value);
+
+    const adminCtrl = document.getElementById('featAdminControls');
+    if (isAdminUser) {
+        adminCtrl.innerHTML = `
+            <button class="feat-btn" style="background:#eab308; color:#422006; flex:1; justify-content:center;" onclick="openAdminDashboard()">
+                <i class="fa-solid fa-crown"></i> Teachers & Search Center
+            </button>
+            <button class="feat-btn" style="background:#2563eb; color:white; flex:1; justify-content:center;" onclick="openAdminPieBreakdownReport()">
+                <i class="fa-solid fa-chart-pie"></i> Pos/Neg Pie Chart
+            </button>
+            <button class="feat-btn" style="background:#ca8a04; color:white; flex:1; justify-content:center;" onclick="openGlobalTopStudentsDirect()">
+                <i class="fa-solid fa-trophy"></i> Global Top Students
+            </button>
+        `;
+    } else {
+        adminCtrl.innerHTML = `
+            <span style="color:#64748b; font-size:12px; font-weight:bold; width:100%; text-align:center;">
+                <i class="fa-solid fa-lock"></i> Restricted to School Principal & Academic Coordinator
+            </span>
+        `;
+    }
+
+    const matrix = document.getElementById('portalClassMatrix');
+    matrix.innerHTML = '';
+    if (!pureAdmin) {
+        classNames.forEach(cName => {
+            const cls = appData.classes[cName];
+            const stuCount = (cls.students || []).length;
+            let clsActs = 0;
+            Object.values(cls.scores || {}).forEach(scObj => {
+                Object.values(scObj).forEach(v => clsActs += v);
+            });
+            const archiveCount = Object.keys(cls.history || {}).length;
+
+            const card = document.createElement('div');
+            card.className = 'cls-matrix-card';
+            card.onclick = () => {
+                appData.currentClass = cName;
+                isHistoryMode = false;
+                historyDate = null;
+                saveGlobal();
+                openMainDashboard();
+            };
+            card.innerHTML = `
+                <div class="cls-matrix-top">
+                    <span class="cls-matrix-name"><i class="fa-solid fa-users-viewfinder" style="color:#2563eb;"></i> ${cName}</span>
+                    <span class="cls-matrix-badge">${stuCount} Students</span>
+                </div>
+                <div class="cls-matrix-stats">
+                    <span style="color:${clsActs > 0 ? '#16a34a' : '#64748b'};"><i class="fa-solid fa-bolt"></i> ${clsActs} Actions</span>
+                    <span><i class="fa-solid fa-calendar-check"></i> ${archiveCount} Saved Days</span>
+                </div>
+            `;
+            matrix.appendChild(card);
+        });
+    }
+}
+
+function populatePortalArchiveDates(cName) {
+    const dateSel = document.getElementById('featSelectArchiveDate');
+    if (!dateSel) return;
+    dateSel.innerHTML = '';
+    const cls = appData.classes && appData.classes[cName];
+    const dates = cls && cls.history ? Object.keys(cls.history).sort().reverse() : [];
+    if (dates.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = 'No Saved Days Yet';
+        dateSel.appendChild(opt);
+    } else {
+        dates.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d; opt.textContent = `📅 ${d}`;
+            dateSel.appendChild(opt);
+        });
+    }
+}
+
+function launchFeature(featureType) {
+    if (featureType === 'board') {
+        const cls = document.getElementById('featSelectBoard').value;
+        if (cls) appData.currentClass = cls;
+        isHistoryMode = false; historyDate = null;
+        openMainDashboard();
+    } else if (featureType === 'classReport') {
+        const cls = document.getElementById('featSelectClassReport').value;
+        if (cls) appData.currentClass = cls;
+        isHistoryMode = false; historyDate = null;
+        openClassReport();
+    } else if (featureType === 'leaderboard') {
+        const cls = document.getElementById('featSelectLeaderboard').value;
+        if (cls) appData.currentClass = cls;
+        isHistoryMode = false; historyDate = null;
+        openLeaderboardReport();
+    } else if (featureType === 'archive') {
+        const cls = document.getElementById('featSelectArchiveClass').value;
+        const dt = document.getElementById('featSelectArchiveDate').value;
+        if (!dt) {
+            showToast("No saved archive dates for this class yet!", true);
+            return;
+        }
+        appData.currentClass = cls;
+        isHistoryMode = true;
+        historyDate = dt;
+        openMainDashboard();
+    }
 }
 
 function exitAdminViewToPanel() {
@@ -640,7 +2170,7 @@ function exitAdminViewToPanel() {
         currentTeacher = adminRealName;
         adminRealName = null;
         isAdminImpersonating = false;
-        openMainDashboard();
+        appData = globalData[currentTeacher];
         openAdminDashboard();
     }
 }
@@ -704,33 +2234,64 @@ function renderNavbar() {
     const nav = document.getElementById('navbar');
     nav.innerHTML = '';
     const readOnly = isReadOnlyView();
+    const pureAdmin = isPureAdminAccount();
 
-    Object.keys(appData.classes).forEach(cName => {
-        const b = document.createElement('button');
-        b.className = `class-tab ${appData.currentClass === cName ? 'active' : ''}`;
-        b.textContent = cName;
-        b.onclick = () => { isHistoryMode = false; historyDate = null; appData.currentClass = cName; saveGlobal(); closeReports(); renderNavbar(); renderClass(); };
-        nav.appendChild(b);
-    });
+    const homeBtn = document.createElement('button');
+    homeBtn.className = `home-nav-btn ${currentViewName === 'home' ? 'active-home' : ''}`;
+    homeBtn.innerHTML = '<i class="fa-solid fa-house"></i> Home Portal';
+    homeBtn.onclick = openHomePortal;
+    nav.appendChild(homeBtn);
+
+    if (!pureAdmin) {
+        const div = document.createElement('div');
+        div.className = 'nav-divider';
+        nav.appendChild(div);
+
+        Object.keys(appData.classes).forEach(cName => {
+            const b = document.createElement('button');
+            b.className = `class-tab ${(currentViewName === 'board' && appData.currentClass === cName) ? 'active' : ''}`;
+            b.textContent = cName;
+            b.onclick = () => {
+                isHistoryMode = false;
+                historyDate = null;
+                appData.currentClass = cName;
+                saveGlobal();
+                openMainDashboard();
+            };
+            nav.appendChild(b);
+        });
+    }
 
     let realUser = isAdminImpersonating ? adminRealName : currentTeacher;
     if (ADMINS.includes(realUser)) {
         if (isAdminImpersonating) {
             const ex = document.createElement('button');
             ex.className = 'nav-btn'; ex.style.background = '#f97316'; ex.style.marginLeft = 'auto';
-            ex.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Exit Teacher View (Back to Admin)';
+            ex.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Exit Teacher View';
             ex.onclick = exitAdminViewToPanel;
             nav.appendChild(ex);
         } else {
             const ad = document.createElement('button');
             ad.className = 'nav-btn'; ad.style.background = '#eab308'; ad.style.color = '#422006'; ad.style.marginLeft = 'auto';
-            ad.innerHTML = '<i class="fa-solid fa-crown"></i> Admin Panel';
+            ad.innerHTML = '<i class="fa-solid fa-crown"></i> Admin Center';
             ad.onclick = openAdminDashboard;
             nav.appendChild(ad);
+
+            const pieBtn = document.createElement('button');
+            pieBtn.className = 'nav-btn'; pieBtn.style.background = '#059669';
+            pieBtn.innerHTML = '<i class="fa-solid fa-chart-pie"></i> Analytics & Pie Chart';
+            pieBtn.onclick = openAdminPieBreakdownReport;
+            nav.appendChild(pieBtn);
+
+            const topBtn = document.createElement('button');
+            topBtn.className = 'nav-btn'; topBtn.style.background = '#ca8a04';
+            topBtn.innerHTML = '<i class="fa-solid fa-trophy"></i> Global Top Students';
+            topBtn.onclick = openGlobalTopStudentsDirect;
+            nav.appendChild(topBtn);
         }
     }
 
-    if (!readOnly) {
+    if (!readOnly && !pureAdmin) {
         const imp = document.createElement('button');
         imp.className = 'nav-btn'; imp.style.background = '#8b5cf6';
         if (!ADMINS.includes(realUser)) imp.style.marginLeft = 'auto';
@@ -883,11 +2444,10 @@ function renderClass() {
     updateHistoryDropdown();
     buildBulkBar();
 
-    // Toggle Read-Only UI elements
     const roBanner = document.getElementById('readOnlyBanner');
     if (readOnly) {
         roBanner.style.display = 'flex';
-        document.getElementById('roTeacherName').textContent = `${currentTeacher} - ${appData.subject || 'General'}`;
+        document.getElementById('roTeacherName').textContent = `${currentTeacher} - ${appData.subject || 'Science'}`;
         document.getElementById('headerClassActions').style.display = 'none';
         document.getElementById('interactionHint').textContent = '👁️ View-Only Mode (Click student name or Class Report to view/print)';
         document.getElementById('saveDatePicker').style.display = 'none';
@@ -947,7 +2507,7 @@ function renderClass() {
         header.className = 'student-header';
         header.innerHTML = `
             <div class="student-info">
-                <div class="student-name ${isStar ? 'is-star' : ''} ${isNegOnly ? 'is-neg-only' : ''}" onclick="openStudentReport(${student.id}, '${student.name.replace(/'/g, "\\'")}')" title="Click to open student report">
+                <div class="student-name ${isStar ? 'is-star' : ''} ${isNegOnly ? 'is-neg-only' : ''}" onclick="openStudentReport(${student.id}, '${student.name.replace(/'/g, "\\'")}')" title="Click to open student report & write comment">
                     ${isNegOnly ? '<i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> ' : ''}${student.name} ${isStar ? '⭐' : ''}
                 </div>
                 <div><small style="display:block;font-size:10px;color:#64748b;">QUIZ</small><input class="score-input" value="${qz}" ${readOnly ? 'disabled' : ''} onchange="updateQ(${student.id}, this.value)"></div>
@@ -1055,9 +2615,10 @@ function promptNewCustomClass() {
     if (isReadOnlyView()) return;
     const n = prompt("Enter new class name:");
     if (n && n.trim()) {
-        appData.classes[n.trim()] = { students: [], scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, history: {} };
+        appData.classes[n.trim()] = { students: [], scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, comments: {}, history: {} };
         appData.currentClass = n.trim();
-        saveGlobal(); renderNavbar(); renderClass();
+        saveGlobal();
+        openMainDashboard();
     }
 }
 function deleteCurrentClass() {
@@ -1073,14 +2634,36 @@ function renderLeaderboard() {
     const list = document.getElementById('leaderboardList');
     list.innerHTML = '';
     const students = appData.classes[appData.currentClass].students || [];
-    let ranked = students.map(s => { const st = calculateStats(s.id); return { id: s.id, name: s.name, st }; })
-                         .filter(x => x.st.hasData && x.st.percentage >= 90 && x.st.positiveCount > x.st.negativeCount);
-    ranked.sort((a, b) => (b.st.percentage !== a.st.percentage) ? b.st.percentage - a.st.percentage : b.st.positiveCount - a.st.positiveCount);
+    let ranked = students.map(s => {
+        const st = calculateStats(s.id);
+        return {
+            id: s.id,
+            name: s.name,
+            pos: st.positiveCount,
+            neg: st.negativeCount,
+            netScore: st.netScore,
+            perc: st.percentage,
+            hasData: st.hasData,
+            text: st.text
+        };
+    }).filter(x => x.hasData && x.perc >= 90 && x.netScore > 0);
+
+    ranked.sort(compareTopStudentsByNetScore);
+
     ranked.slice(0, 10).forEach((x, i) => {
-        const li = document.createElement('li'); li.className = 'lb-item';
-        li.innerHTML = `<span style="cursor:pointer;" onclick="openStudentReport(${x.id}, '${x.name.replace(/'/g, "\\'")}')">#${i+1} ${x.name}</span><span class="percentage-badge perc-high">${x.st.text}</span>`;
+        const li = document.createElement('li');
+        li.className = 'lb-item';
+        li.innerHTML = `
+            <span style="cursor:pointer; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="openStudentReport(${x.id}, '${x.name.replace(/'/g, "\\'")}')" title="+${x.pos} Pos / -${x.neg} Neg (Net: +${x.netScore})">#${i+1} ${x.name}</span>
+            <span class="net-score-pill" title="Positives (${x.pos}) - Negatives (${x.neg})">Net: +${x.netScore}</span>
+            <span class="percentage-badge perc-high readonly-badge">${x.perc}%</span>
+        `;
         list.appendChild(li);
     });
+
+    if (ranked.length === 0) {
+        list.innerHTML = '<li style="text-align:center; color:#64748b; font-size:12px; padding:8px;">No students qualify yet (&ge;90% &amp; Pos &gt; Neg)</li>';
+    }
 }
 
 function saveAndClearDay() {
@@ -1106,9 +2689,10 @@ function saveAndClearDay() {
         scores: JSON.parse(JSON.stringify(cls.scores || {})),
         quizScores: JSON.parse(JSON.stringify(cls.quizScores || {})),
         projectScores: JSON.parse(JSON.stringify(cls.projectScores || {})),
-        manualScores: JSON.parse(JSON.stringify(cls.manualScores || {}))
+        manualScores: JSON.parse(JSON.stringify(cls.manualScores || {})),
+        comments: JSON.parse(JSON.stringify(cls.comments || {}))
     };
-    cls.scores = {}; cls.quizScores = {}; cls.projectScores = {}; cls.manualScores = {};
+    cls.scores = {}; cls.quizScores = {}; cls.projectScores = {}; cls.manualScores = {}; cls.comments = {};
     saveGlobal();
     renderClass();
     showToast(`Saved day ${d} & cleared board!`, false);
@@ -1165,32 +2749,69 @@ function getAverages(sId) {
     return { weekly: wC ? Math.round(wS/wC)+'%' : '-', monthly: mC ? Math.round(mS/mC)+'%' : '-' };
 }
 
-function hideAllViews() {
-    ['mainView','studentReportView','classReportView','leaderboardReportView','globalReportView','globalClassReportView','adminDashboardView'].forEach(id => {
-        document.getElementById(id).style.display = 'none';
-    });
+function closeReports() {
+    if (isPureAdminAccount()) openHomePortal();
+    else openMainDashboard();
 }
-function closeReports() { hideAllViews(); document.getElementById('mainView').style.display = 'block'; renderClass(); }
 
+function saveStudentComment(val) {
+    const printBox = document.getElementById('r-teacherCommentPrint');
+    if (printBox) printBox.textContent = val.trim() || 'No additional comments.';
+    if (isReadOnlyView() || !activeReportStudentId) return;
+    const act = getActiveData();
+    if (!act) return;
+    if (!act.comments) act.comments = {};
+    act.comments[activeReportStudentId] = val;
+    saveGlobal();
+}
+
+// ================= REPORTS WITH UNIVERSAL PERIOD FILTER =================
 function openStudentReport(sId, sName) {
-    hideAllViews(); document.getElementById('studentReportView').style.display = 'block';
+    currentViewName = 'studentReport';
+    activeReportStudentId = sId;
     activeGlobalStudentName = sName;
+    if (isHistoryMode && historyDate) {
+        activeAnalyticsPeriod = 'today';
+        selectedSpecificDate = historyDate;
+    }
+    hideAllViews();
+    document.getElementById('studentReportView').style.display = 'block';
+    renderNavbar();
+    renderStudentReportContent();
+}
+
+function renderStudentReportContent() {
+    renderUniversalPeriodBarInSlot('stuReportPeriodBar');
+    const sId = activeReportStudentId;
+    const sName = activeGlobalStudentName;
+    const cls = appData.classes[appData.currentClass];
     let realUser = isAdminImpersonating ? adminRealName : currentTeacher;
-    document.getElementById('btnOpenGlobal').style.display = ADMINS.includes(realUser) ? 'inline-block' : 'none';
+    document.getElementById('btnOpenGlobal').style.display = ADMINS.includes(realUser) ? 'inline-flex' : 'none';
     document.getElementById('r-studentName').textContent = sName;
-    document.getElementById('r-meta').textContent = `${appData.currentClass} | ${appData.subject} | ${currentTeacher} ${isHistoryMode ? '| Date: ' + historyDate : ''}`;
-    const st = calculateStats(sId); const act = getActiveData(); const av = getAverages(sId);
-    document.getElementById('r-pos-score').textContent = st.positiveCount;
-    document.getElementById('r-neg-score').textContent = st.negativeCount;
-    document.getElementById('r-quiz-score').textContent = (act.quizScores && act.quizScores[sId]) || '-';
-    document.getElementById('r-project-score').textContent = (act.projectScores && act.projectScores[sId]) || '-';
+    document.getElementById('r-meta').textContent = `${appData.currentClass} | ${appData.subject} | ${currentTeacher} — [${getFormattedActivePeriodLabel()}]`;
+
+    const pSt = calculateStudentPeriodStatsInClass(sId, cls);
+    const av = getAverages(sId);
+
+    document.getElementById('r-pos-score').textContent = pSt.positiveCount;
+    document.getElementById('r-neg-score').textContent = pSt.negativeCount;
+    document.getElementById('r-quiz-score').textContent = pSt.latestQuiz;
+    document.getElementById('r-project-score').textContent = pSt.latestProj;
     document.getElementById('r-weekly-avg').textContent = av.weekly;
     document.getElementById('r-monthly-avg').textContent = av.monthly;
-    document.getElementById('r-perc').innerHTML = st.text;
+    document.getElementById('r-perc').innerHTML = pSt.text;
+
+    const act = getActiveData();
+    const savedComment = (act && act.comments && act.comments[sId]) || pSt.latestComment || '';
+    const commentInput = document.getElementById('r-teacherCommentInput');
+    const commentPrint = document.getElementById('r-teacherCommentPrint');
+    commentInput.value = savedComment;
+    commentInput.disabled = isReadOnlyView();
+    commentPrint.textContent = savedComment.trim() || 'No additional comments.';
 
     let pH = '<h4>Positive Behaviors</h4>', nH = '<h4>Needs Improvement</h4>';
     behaviors.forEach(b => {
-        const c = (act.scores && act.scores[sId] && act.scores[sId][b.id]) || 0;
+        const c = pSt.behaviorMap[b.id] || 0;
         if (c > 0) {
             const li = `<li style="padding:6px 0; border-bottom:1px dashed #ccc; display:flex; justify-content:space-between;"><span>${b.title}</span><strong>${c}</strong></li>`;
             if (b.type === 'positive') pH += li; else nH += li;
@@ -1201,29 +2822,83 @@ function openStudentReport(sId, sName) {
 }
 
 function openClassReport() {
-    hideAllViews(); document.getElementById('classReportView').style.display = 'block';
-    document.getElementById('cr-className').textContent = `${appData.currentClass} — ${appData.subject} (${currentTeacher}) ${isHistoryMode ? '[' + historyDate + ']' : ''}`;
-    const tb = document.getElementById('cr-table-body'); tb.innerHTML = '';
-    const act = getActiveData();
-    appData.classes[appData.currentClass].students.forEach(s => {
-        const st = calculateStats(s.id); const av = getAverages(s.id);
+    currentViewName = 'classReport';
+    if (isHistoryMode && historyDate) {
+        activeAnalyticsPeriod = 'today';
+        selectedSpecificDate = historyDate;
+    }
+    hideAllViews();
+    document.getElementById('classReportView').style.display = 'block';
+    renderNavbar();
+    renderClassReportContent();
+}
+
+function renderClassReportContent() {
+    renderUniversalPeriodBarInSlot('clsReportPeriodBar');
+    const cls = appData.classes[appData.currentClass];
+    document.getElementById('cr-className').textContent = `${appData.currentClass} — ${appData.subject} (${currentTeacher}) | ${getFormattedActivePeriodLabel()}`;
+    const tb = document.getElementById('cr-table-body');
+    tb.innerHTML = '';
+
+    (cls.students || []).forEach(s => {
+        const pSt = calculateStudentPeriodStatsInClass(s.id, cls);
+        const av = getAverages(s.id);
         const tr = document.createElement('tr');
-        if (st.isNegativeOnly) tr.className = 'row-neg-only';
-        tr.innerHTML = `<td><strong>${st.isNegativeOnly ? '⚠️ ' : ''}${s.name}</strong></td><td>${(act.quizScores&&act.quizScores[s.id])||'-'}</td><td>${(act.projectScores&&act.projectScores[s.id])||'-'}</td><td style="color:green;font-weight:bold;">+${st.positiveCount}</td><td style="color:red;font-weight:bold;">-${st.negativeCount}</td><td>${av.weekly}</td><td>${av.monthly}</td><td><span class="percentage-badge ${st.colorClass} readonly-badge">${st.text}</span></td>`;
+        if (pSt.isNegativeOnly) tr.className = 'row-neg-only';
+        tr.innerHTML = `<td><strong>${pSt.isNegativeOnly ? '⚠️ ' : ''}${s.name}</strong></td><td>${pSt.latestQuiz}</td><td>${pSt.latestProj}</td><td style="color:green;font-weight:bold;">+${pSt.positiveCount}</td><td style="color:red;font-weight:bold;">-${pSt.negativeCount}</td><td>${av.weekly}</td><td>${av.monthly}</td><td><span class="percentage-badge ${pSt.colorClass} readonly-badge">${pSt.text}</span></td>`;
         tb.appendChild(tr);
     });
 }
 
 function openLeaderboardReport() {
-    hideAllViews(); document.getElementById('leaderboardReportView').style.display = 'block';
-    document.getElementById('lbr-className').textContent = appData.currentClass;
-    const tb = document.getElementById('lbr-table-body'); tb.innerHTML = '';
-    let ranked = appData.classes[appData.currentClass].students.map(s => ({ name: s.name, st: calculateStats(s.id) }))
-        .filter(x => x.st.hasData && x.st.percentage >= 90 && x.st.positiveCount > x.st.negativeCount);
-    ranked.sort((a, b) => (b.st.percentage !== a.st.percentage) ? b.st.percentage - a.st.percentage : b.st.positiveCount - a.st.positiveCount);
+    currentViewName = 'leaderboardReport';
+    hideAllViews();
+    document.getElementById('leaderboardReportView').style.display = 'block';
+    renderNavbar();
+    renderLeaderboardReportContent();
+}
+
+function renderLeaderboardReportContent() {
+    renderUniversalPeriodBarInSlot('lbrReportPeriodBar');
+    const cls = appData.classes[appData.currentClass];
+    document.getElementById('lbr-className').textContent = `${appData.currentClass} — ${appData.subject} (${currentTeacher}) | ${getFormattedActivePeriodLabel()}`;
+    const tb = document.getElementById('lbr-table-body');
+    tb.innerHTML = '';
+
+    let ranked = (cls.students || []).map(s => {
+        const pSt = calculateStudentPeriodStatsInClass(s.id, cls);
+        return {
+            name: s.name,
+            pos: pSt.positiveCount,
+            neg: pSt.negativeCount,
+            netScore: pSt.netScore,
+            perc: pSt.percentage,
+            hasData: pSt.hasData
+        };
+    }).filter(x => x.hasData && x.perc >= 90 && x.netScore > 0);
+
+    ranked.sort(compareTopStudentsByNetScore);
+
+    if (ranked.length === 0) {
+        tb.innerHTML = `<tr><td colspan="6" style="color:#64748b; padding:20px;">No students currently meet the Honor Roll criteria (&ge; 90% and Positives &gt; Negatives) for this period.</td></tr>`;
+        return;
+    }
+
     ranked.slice(0, 10).forEach((x, i) => {
+        let medal = `#${i+1}`;
+        if (i === 0) medal = '🥇 #1';
+        else if (i === 1) medal = '🥈 #2';
+        else if (i === 2) medal = '🥉 #3';
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>#${i+1}</td><td><strong>${x.name}</strong></td><td><span class="percentage-badge perc-high readonly-badge">${x.st.text}</span></td><td>+${x.st.positiveCount}</td>`;
+        tr.innerHTML = `
+            <td style="font-weight:900;">${medal}</td>
+            <td><strong>${x.name}</strong></td>
+            <td style="color:#16a34a; font-weight:bold;">+${x.pos}</td>
+            <td style="color:#dc2626; font-weight:bold;">-${x.neg}</td>
+            <td><span class="net-score-pill">Net: +${x.netScore}</span></td>
+            <td><span class="percentage-badge perc-high readonly-badge">${x.perc}%</span></td>
+        `;
         tb.appendChild(tr);
     });
 }
@@ -1232,18 +2907,30 @@ function buildAutocompleteList() {
     const dl = document.getElementById('allStudentsList'); dl.innerHTML = '';
     let set = new Set();
     Object.values(SCHOOL_CLASSES).forEach(arr => arr.forEach(n => set.add(n)));
-    Object.values(globalData).forEach(t => Object.values(t.classes||{}).forEach(c => (c.students||[]).forEach(s => set.add(s.name))));
+    Object.values(globalData).forEach(t => Object.values((t && t.classes)||{}).forEach(c => (c.students||[]).forEach(s => set.add(s.name))));
     Array.from(set).sort().forEach(n => { const o = document.createElement('option'); o.value = n; dl.appendChild(o); });
 }
 
 function openAdminDashboard() {
+    currentViewName = 'admin';
     hideAllViews(); document.getElementById('adminDashboardView').style.display = 'block';
+    renderNavbar();
+
     const cSel = document.getElementById('adminClassSelect'); cSel.innerHTML = '';
-    Object.keys(SCHOOL_CLASSES).forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
+    const topCSel = document.getElementById('adminTopClassSelect');
+    topCSel.innerHTML = '<option value="ALL_CLASSES">🏫 All School Classes (كل الفصول)</option>';
+
+    Object.keys(SCHOOL_CLASSES).forEach(c => {
+        const o1 = document.createElement('option'); o1.value = c; o1.textContent = c; cSel.appendChild(o1);
+        const o2 = document.createElement('option'); o2.value = c; o2.textContent = c; topCSel.appendChild(o2);
+    });
+
+    fillSubFilter('adminTopSubjectSelect');
 
     const tb = document.getElementById('admin-table-body'); tb.innerHTML = '';
     Object.keys(TEACHER_PINS).forEach(tName => {
-        const tObj = globalData[tName] || { subject: 'Not Set', classes: {} };
+        if (ADMINS.includes(tName)) return;
+        const tObj = globalData[tName] || { subject: DEFAULT_TEACHER_SUBJECTS[tName] || 'Science', classes: {} };
         let acts = 0;
         Object.values(tObj.classes||{}).forEach(c => Object.values(c.scores||{}).forEach(s => Object.values(s).forEach(v => acts += v)));
         const tr = document.createElement('tr');
@@ -1258,22 +2945,28 @@ function impersonate(tName) {
         currentTeacher = adminRealName;
         adminRealName = null;
         isAdminImpersonating = false;
+        openHomePortal();
+        return;
     } else {
         currentTeacher = tName;
         isAdminImpersonating = true;
     }
     if (!globalData[currentTeacher]) {
-        globalData[currentTeacher] = { subject: "General", classes: {}, currentClass: "" };
+        globalData[currentTeacher] = { subject: DEFAULT_TEACHER_SUBJECTS[tName] || "Science", classes: {}, currentClass: "" };
         populateAllSchoolClasses(globalData[currentTeacher]);
     }
     openMainDashboard();
 }
 
 function fillSubFilter(id) {
-    const s = document.getElementById(id); s.innerHTML = '<option value="ALL">All Subjects</option>';
-    ["Science","Math","English","Arabic","Islamic Studies","Social Studies","Physics","Chemistry","Biology","Computer","Art","PE"].forEach(sub => {
+    const s = document.getElementById(id);
+    if (!s) return;
+    const oldVal = s.value;
+    s.innerHTML = '<option value="ALL">🌐 All Subjects Combined (متوسط كل المواد)</option>';
+    ALL_SUBJECTS.forEach(sub => {
         const o = document.createElement('option'); o.value = sub; o.textContent = sub; s.appendChild(o);
     });
+    if (oldVal) s.value = oldVal;
 }
 
 function openGlobalReportFromStudent() { returnToAdminFromGlobal = false; fillSubFilter('gr-subjectFilter'); generateGlobalReportHTML('ALL'); }
@@ -1285,23 +2978,33 @@ function adminSearchGlobalReport() {
 function closeGlobalReport() { if (returnToAdminFromGlobal) openAdminDashboard(); else closeReports(); }
 
 function generateGlobalReportHTML(fSub = 'ALL') {
+    currentViewName = 'globalStudentReport';
     hideAllViews(); document.getElementById('globalReportView').style.display = 'block';
+    renderNavbar();
+    renderUniversalPeriodBarInSlot('grUniversalPeriodSlot');
+
     document.getElementById('gr-studentName').textContent = activeGlobalStudentName;
+    document.getElementById('gr-periodSubtitle').textContent = getFormattedActivePeriodLabel();
+
     const tb = document.getElementById('gr-table-body'); tb.innerHTML = '';
     let tP = 0, tN = 0, sP = 0, cnt = 0;
+
     Object.keys(globalData).forEach(tName => {
+        if (ADMINS.includes(tName)) return;
         const tObj = globalData[tName];
-        if (fSub !== 'ALL' && tObj.subject !== fSub) return;
+        if (!tObj || (fSub !== 'ALL' && tObj.subject !== fSub)) return;
         Object.keys(tObj.classes||{}).forEach(cName => {
             const cls = tObj.classes[cName];
             const stu = (cls.students||[]).find(s => s.name.toLowerCase() === activeGlobalStudentName.toLowerCase());
             if (stu) {
-                const st = calculateStatsFromData(stu.id, cls);
-                if (st.hasData) {
-                    tP += st.positiveCount; tN += st.negativeCount; sP += st.percentage; cnt++;
+                const pSt = calculateStudentPeriodStatsInClass(stu.id, cls);
+                if (pSt.hasData || pSt.latestComment) {
+                    if (pSt.hasData) {
+                        tP += pSt.positiveCount; tN += pSt.negativeCount; sP += pSt.percentage; cnt++;
+                    }
                     const tr = document.createElement('tr');
-                    if (st.isNegativeOnly) tr.className = 'row-neg-only';
-                    tr.innerHTML = `<td><strong>${tObj.subject}</strong></td><td>${tName}</td><td>${cName}</td><td>${(cls.quizScores&&cls.quizScores[stu.id])||'-'}</td><td>${(cls.projectScores&&cls.projectScores[stu.id])||'-'}</td><td style="color:green;font-weight:bold;">+${st.positiveCount}</td><td style="color:red;font-weight:bold;">-${st.negativeCount}</td><td><span class="percentage-badge ${st.colorClass} readonly-badge">${st.text}</span></td>`;
+                    if (pSt.isNegativeOnly) tr.className = 'row-neg-only';
+                    tr.innerHTML = `<td><strong>${tObj.subject}</strong></td><td>${tName}</td><td>${cName}</td><td>${pSt.latestQuiz}</td><td>${pSt.latestProj}</td><td style="color:green;font-weight:bold;">+${pSt.positiveCount}</td><td style="color:red;font-weight:bold;">-${pSt.negativeCount}</td><td><span class="percentage-badge ${pSt.colorClass} readonly-badge">${pSt.text}</span></td><td style="font-size:12px; color:#334155; max-width:200px;">${pSt.latestComment || '-'}</td>`;
                     tb.appendChild(tr);
                 }
             }
@@ -1319,34 +3022,143 @@ function adminSearchGlobalClassReport() {
 }
 
 function generateGlobalClassReportHTML(fSub = 'ALL') {
+    currentViewName = 'globalClassReport';
     hideAllViews(); document.getElementById('globalClassReportView').style.display = 'block';
-    document.getElementById('gcr-className').textContent = `${activeGlobalClassName} (${fSub})`;
+    renderNavbar();
+    renderUniversalPeriodBarInSlot('gcrUniversalPeriodSlot');
+
+    document.getElementById('gcr-className').textContent = `${activeGlobalClassName} (${fSub === 'ALL' ? 'All Subjects Combined' : fSub}) — ${getFormattedActivePeriodLabel()}`;
     const tb = document.getElementById('gcr-table-body'); tb.innerHTML = '';
     const roster = SCHOOL_CLASSES[activeGlobalClassName] || [];
     roster.forEach(sName => {
         let p = 0, n = 0, sum = 0, c = 0;
         Object.keys(globalData).forEach(tName => {
+            if (ADMINS.includes(tName)) return;
             const tObj = globalData[tName];
-            if (fSub !== 'ALL' && tObj.subject !== fSub) return;
+            if (!tObj || (fSub !== 'ALL' && tObj.subject !== fSub)) return;
             const cls = tObj.classes && tObj.classes[activeGlobalClassName];
             if (cls) {
                 const stu = (cls.students||[]).find(s => s.name.toLowerCase() === sName.toLowerCase());
                 if (stu) {
-                    const st = calculateStatsFromData(stu.id, cls);
-                    if (st.hasData) { p += st.positiveCount; n += st.negativeCount; sum += st.percentage; c++; }
+                    const pSt = calculateStudentPeriodStatsInClass(stu.id, cls);
+                    if (pSt.hasData) { p += pSt.positiveCount; n += pSt.negativeCount; sum += pSt.percentage; c++; }
                 }
             }
         });
         const isNegOnlyGlobal = (n > 0 && p === 0);
+        const net = p - n;
         const tr = document.createElement('tr');
         if (isNegOnlyGlobal) tr.className = 'row-neg-only';
-        tr.innerHTML = `<td style="font-weight:bold;color:#2563eb;cursor:pointer;" onclick="activeGlobalStudentName='${sName.replace(/'/g, "\\'")}';returnToAdminFromGlobal=true;fillSubFilter('gr-subjectFilter');generateGlobalReportHTML('${fSub}');">${isNegOnlyGlobal ? '⚠️ ' : ''}${sName}</td><td>${c}</td><td style="color:green;font-weight:bold;">+${p}</td><td style="color:red;font-weight:bold;">-${n}</td><td><strong>${c ? Math.round(sum/c)+'% (+' + p + ')' : 'No Data'}</strong></td>`;
+        tr.innerHTML = `<td style="font-weight:bold;color:#2563eb;cursor:pointer;" onclick="activeGlobalStudentName='${sName.replace(/'/g, "\\'")}';returnToAdminFromGlobal=true;fillSubFilter('gr-subjectFilter');generateGlobalReportHTML('${fSub}');">${isNegOnlyGlobal ? '⚠️ ' : ''}${sName}</td><td>${c}</td><td style="color:green;font-weight:bold;">+${p}</td><td style="color:red;font-weight:bold;">-${n}</td><td><span class="net-score-pill">Net: ${net >= 0 ? '+'+net : net}</span></td><td><strong>${c ? Math.round(sum/c)+'%' : 'No Data'}</strong></td>`;
+        tb.appendChild(tr);
+    });
+}
+
+function populateGlobalTopFilters(defaultClass = 'ALL_CLASSES', defaultSub = 'ALL') {
+    const cSel = document.getElementById('gts-classFilter');
+    cSel.innerHTML = '<option value="ALL_CLASSES">🏫 All School Classes (كل الفصول)</option>';
+    Object.keys(SCHOOL_CLASSES).forEach(c => {
+        const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o);
+    });
+    cSel.value = defaultClass;
+
+    fillSubFilter('gts-subjectFilter');
+    document.getElementById('gts-subjectFilter').value = defaultSub;
+}
+
+function openGlobalTopStudentsDirect() {
+    populateGlobalTopFilters('ALL_CLASSES', 'ALL');
+    generateGlobalTopStudentsHTML();
+}
+
+function adminOpenGlobalTopStudents() {
+    const cVal = document.getElementById('adminTopClassSelect').value || 'ALL_CLASSES';
+    const sVal = document.getElementById('adminTopSubjectSelect').value || 'ALL';
+    populateGlobalTopFilters(cVal, sVal);
+    generateGlobalTopStudentsHTML();
+}
+
+function generateGlobalTopStudentsHTML() {
+    currentViewName = 'globalTopStudents';
+    hideAllViews();
+    document.getElementById('globalTopStudentsView').style.display = 'block';
+    renderNavbar();
+    renderUniversalPeriodBarInSlot('gtsUniversalPeriodSlot');
+
+    const fClass = document.getElementById('gts-classFilter').value || 'ALL_CLASSES';
+    const fSub = document.getElementById('gts-subjectFilter').value || 'ALL';
+
+    const classLabel = fClass === 'ALL_CLASSES' ? 'All School Classes' : fClass;
+    const subLabel = fSub === 'ALL' ? 'All Subjects Combined' : `Subject: ${fSub}`;
+    document.getElementById('gts-subtitle').textContent = `${classLabel} — ${subLabel} | ${getFormattedActivePeriodLabel()}`;
+
+    const studentMap = {};
+
+    Object.keys(globalData).forEach(tName => {
+        if (ADMINS.includes(tName)) return;
+        const tObj = globalData[tName];
+        if (!tObj || !tObj.classes) return;
+        const tSub = tObj.subject || 'Science';
+        if (fSub !== 'ALL' && tSub !== fSub) return;
+
+        Object.keys(tObj.classes).forEach(cName => {
+            if (fClass !== 'ALL_CLASSES' && cName !== fClass) return;
+            const cls = tObj.classes[cName];
+            (cls.students || []).forEach(stu => {
+                const pSt = calculateStudentPeriodStatsInClass(stu.id, cls);
+                if (pSt.hasData) {
+                    const key = `${cName}||${stu.name.toLowerCase()}`;
+                    if (!studentMap[key]) {
+                        studentMap[key] = { name: stu.name, className: cName, pos: 0, neg: 0, sumPerc: 0, subCount: 0 };
+                    }
+                    studentMap[key].pos += pSt.positiveCount;
+                    studentMap[key].neg += pSt.negativeCount;
+                    studentMap[key].sumPerc += pSt.percentage;
+                    studentMap[key].subCount += 1;
+                }
+            });
+        });
+    });
+
+    const qualified = Object.values(studentMap).map(item => {
+        const perc = Math.round(item.sumPerc / item.subCount);
+        const netScore = item.pos - item.neg;
+        return { ...item, perc, netScore };
+    }).filter(item => item.perc >= 90 && item.netScore > 0);
+
+    qualified.sort(compareTopStudentsByNetScore);
+
+    const tb = document.getElementById('gts-table-body');
+    tb.innerHTML = '';
+
+    if (qualified.length === 0) {
+        tb.innerHTML = `<tr><td colspan="8" style="color:#64748b; padding:20px;">No students currently meet the Honor Roll criteria (&ge; 90% and Positives &gt; Negatives) for this period &amp; filter.</td></tr>`;
+        return;
+    }
+
+    qualified.slice(0, 20).forEach((item, idx) => {
+        let medal = `#${idx + 1}`;
+        if (idx === 0) medal = '🥇 #1';
+        else if (idx === 1) medal = '🥈 #2';
+        else if (idx === 2) medal = '🥉 #3';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:900; font-size:15px;">${medal}</td>
+            <td style="font-weight:bold; color:#2563eb; cursor:pointer;" onclick="activeGlobalStudentName='${item.name.replace(/'/g, "\\'")}'; returnToAdminFromGlobal=true; fillSubFilter('gr-subjectFilter'); generateGlobalReportHTML('${fSub}');">${item.name}</td>
+            <td><strong>${item.className}</strong></td>
+            <td>${item.subCount}</td>
+            <td style="color:#16a34a; font-weight:bold;">+${item.pos}</td>
+            <td style="color:#dc2626; font-weight:bold;">-${item.neg}</td>
+            <td><span class="net-score-pill">Net: +${item.netScore}</span></td>
+            <td><span class="percentage-badge perc-high readonly-badge">${item.perc}%</span></td>
+        `;
         tb.appendChild(tr);
     });
 }
 
 async function handleImport(event) {
-    if (isReadOnlyView()) return;
+    if (isReadOnlyView() || isPureAdminAccount()) return;
     const file = event.target.files[0];
     if (!file) return;
     const ext = file.name.split('.').pop().toLowerCase();
@@ -1368,10 +3180,11 @@ async function handleImport(event) {
             if (cName) {
                 appData.classes[cName] = {
                     students: names.map((n, i) => ({ id: Date.now() + i, name: n })),
-                    scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, history: {}
+                    scores: {}, quizScores: {}, projectScores: {}, manualScores: {}, comments: {}, history: {}
                 };
                 appData.currentClass = cName;
-                saveGlobal(); renderNavbar(); renderClass();
+                saveGlobal();
+                openMainDashboard();
             }
         }
     } catch (err) { alert("Could not read file."); }
